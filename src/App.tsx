@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { auth, db, OperationType, handleFirestoreError } from "./lib/firebase";
 import { 
   GoogleAuthProvider, 
+  FacebookAuthProvider,
   signInWithPopup, 
   signOut, 
   onAuthStateChanged,
@@ -136,6 +137,27 @@ export default function App() {
     }
   };
 
+  const loginWithFacebook = async () => {
+    setAuthLoading(true);
+    try {
+      await setPersistence(auth, browserLocalPersistence);
+      const provider = new FacebookAuthProvider();
+      // Ensure popup is allowed
+      await signInWithPopup(auth, provider);
+    } catch (err: any) {
+      console.error("Facebook Login Error:", err);
+      if (err.code === 'auth/popup-blocked') {
+        alert("আপনার ব্রাউজার পপ-আপ ব্লক করেছে। অনুগ্রহ করে পপ-আপ এলাউ করুন।");
+      } else if (err.code === 'auth/account-exists-with-different-credential') {
+        alert("এই ইমেইল দিয়ে ইতমধ্যেই একটি অ্যাকাউন্ট আছে। অনুগ্রহ করে গুগল দিয়ে লগইন করুন।");
+      } else {
+        alert("ফেসবুক লগইন করতে সমস্যা হচ্ছে: " + (err.code || err.message));
+      }
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
   const logout = async () => {
     await signOut(auth);
     setIsAdminView(false);
@@ -218,9 +240,17 @@ export default function App() {
              <button 
               onClick={login}
               disabled={authLoading}
-              className="w-full py-4 border-2 border-green-700 text-green-700 font-black rounded-full uppercase tracking-widest hover:bg-green-50 transition-all active:scale-95 disabled:opacity-50"
+              className="w-full py-4 border-2 border-green-700 text-green-700 font-black rounded-full uppercase tracking-widest hover:bg-green-50 transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
              >
-               {authLoading ? 'Wait...' : 'Login with Google'}
+               <Mail size={18} /> {authLoading ? 'Wait...' : 'Login with Google'}
+             </button>
+
+             <button 
+              onClick={loginWithFacebook}
+              disabled={authLoading}
+              className="w-full py-4 border-2 border-blue-700 text-blue-700 font-black rounded-full uppercase tracking-widest hover:bg-blue-50 transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
+             >
+               <Facebook size={18} /> {authLoading ? 'Wait...' : 'Login with Facebook'}
              </button>
              
              <button 
