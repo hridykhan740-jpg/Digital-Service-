@@ -48,6 +48,7 @@ import {
   SimOffers 
 } from "./components/ServiceForms";
 import { AdminPanel } from "./components/AdminPanel";
+import { ProfileEdit } from "./components/ProfileEdit";
 import { ADMIN_EMAILS, UserProfile, PlatformService } from "./types";
 
 export default function App() {
@@ -61,6 +62,8 @@ export default function App() {
   const [showBalance, setShowBalance] = useState(false);
 
   const [authLoading, setAuthLoading] = useState(false);
+
+  const [showPaymentInfo, setShowPaymentInfo] = useState(false);
 
   useEffect(() => {
     // Listen to services
@@ -169,9 +172,9 @@ export default function App() {
                   <Smartphone className="text-blue-600" size={32} />
                   <Globe className="absolute -top-1 -right-1 text-green-500" size={16} />
                </div>
-               <div className="text-[10px] font-black uppercase text-blue-900 mt-1 flex flex-col items-center leading-none">
-                  <span className="text-blue-600">BEST</span>
-                  <span className="text-green-700">TELECOM</span>
+               <div className="text-[8px] font-black uppercase text-blue-900 mt-1 flex flex-col items-center leading-tight text-center px-2">
+                  <span className="text-blue-600">Àbdüllāh Aĺ</span>
+                  <span className="text-green-700 text-[9px]">Hỗŝŝâîň</span>
                </div>
             </div>
           </div>
@@ -219,14 +222,11 @@ export default function App() {
              
              <button 
               onClick={login}
-              className="w-full py-4 bg-[#006400] text-white font-black rounded-full uppercase tracking-widest shadow-xl shadow-green-900/20 hover:bg-green-800 transition-all active:scale-95"
+              disabled={authLoading}
+              className="w-full py-4 bg-[#006400] text-white font-black rounded-full uppercase tracking-widest shadow-xl shadow-green-900/20 hover:bg-green-800 transition-all active:scale-95 disabled:opacity-50"
              >
-               Register a New Account
+               {authLoading ? 'Registering...' : 'Register a New Account'}
              </button>
-          </div>
-
-          <div className="text-center">
-             <button className="text-green-700 font-bold text-sm">Forgot password ?</button>
           </div>
 
           <p className="text-[10px] text-center text-gray-500 font-bold flex flex-wrap justify-center gap-1">
@@ -244,18 +244,6 @@ export default function App() {
               <SocialIconItem icon={<Smartphone className="text-green-700" />} label="Helpline" />
            </div>
         </div>
-
-        {/* Snackbar-like Toast (Simulation from image) */}
-        <motion.div 
-          initial={{ opacity: 0, y: 100 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="fixed bottom-10 bg-white shadow-xl px-4 py-2 border rounded-full flex items-center gap-2"
-        >
-          <div className="w-6 h-6 flex items-center justify-center">
-             <Smartphone size={14} className="text-blue-600" />
-          </div>
-          <span className="text-[10px] font-bold text-gray-700">An error occurred</span>
-        </motion.div>
       </div>
     );
   }
@@ -324,7 +312,10 @@ export default function App() {
               className="space-y-6"
             >
               {/* User Profile Card */}
-              <div className="bg-white border-2 border-[#006400] rounded-2xl p-4 flex justify-between items-center shadow-sm">
+              <div 
+                onClick={() => setActiveService('profile')}
+                className="bg-white border-2 border-[#006400] rounded-2xl p-4 flex justify-between items-center shadow-sm cursor-pointer hover:bg-gray-50 transition-colors active:scale-[0.98]"
+              >
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center text-[#006400]">
                     <UserIcon size={24} />
@@ -382,7 +373,10 @@ export default function App() {
                       const serviceConfig = services.find(s => s.id === item.dbId);
                       // If service configuration exists in Firestore, use its active status. 
                       // If not, show it as active by default for standard ones.
-                      if (serviceConfig && !serviceConfig.active) return null;
+                      if (serviceConfig) {
+                        if (!serviceConfig.active) return null;
+                        if (serviceConfig.adminOnly && profile?.role !== 'admin') return null;
+                      }
                       
                       return (
                         <DashboardIcon 
@@ -395,8 +389,7 @@ export default function App() {
                     })}
                     
                     {/* Other static icons */}
-                    <DashboardIcon icon={<ArrowRightLeft className="text-gray-600" />} label="Transfer" />
-                    <DashboardIcon icon={<Wallet className="text-[#006400]" />} label="Payments" />
+                    <DashboardIcon icon={<Wallet className="text-[#006400]" />} label="Payments" onClick={() => setShowPaymentInfo(true)} />
                     <DashboardIcon icon={<Users className="text-red-500" />} label="My Team" />
                     <DashboardIcon icon={<Headset className="text-[#006400]" />} label="Agent" onClick={() => setActiveService('agent')} />
                  </div>
@@ -444,6 +437,13 @@ export default function App() {
               {activeService === 'app' && <AppForm onBack={() => setActiveService(null)} onSuccess={handleSuccess} />}
               {activeService === 'sim' && <SimOffers onBack={() => setActiveService(null)} onSuccess={handleSuccess} />}
               {activeService === 'agent' && <AgentLinks onBack={() => setActiveService(null)} />}
+              {activeService === 'profile' && profile && (
+                <ProfileEdit 
+                  profile={profile} 
+                  onClose={() => setActiveService(null)} 
+                  onUpdate={(updated) => setProfile(prev => prev ? { ...prev, ...updated } : prev)} 
+                />
+              )}
             </motion.div>
           )}
         </AnimatePresence>
@@ -453,7 +453,7 @@ export default function App() {
       <nav className="fixed bottom-0 left-0 right-0 bg-[#006400] text-white flex justify-around items-center h-20 shadow-[0_-5px_20px_rgba(0,0,0,0.1)] z-50">
          <BottomNavItem icon={<Home size={24} />} label="Home" onClick={() => setActiveService(null)} isActive={!activeService} />
          <BottomNavItem icon={<Zap size={24} />} label="Recharge" onClick={() => setActiveService('sim')} isActive={activeService === 'sim'} />
-         <BottomNavItem icon={<BookOpen size={24} />} label="TallyKhata" />
+         <BottomNavItem icon={<BookOpen size={24} />} label="TallyKhata" onClick={() => window.open('https://tallykhata.com', '_blank')} />
       </nav>
 
       {/* Success Notification */}
@@ -470,12 +470,68 @@ export default function App() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Payment Info Modal */}
+      <AnimatePresence>
+        {showPaymentInfo && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
+            onClick={() => setShowPaymentInfo(false)}
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              className="bg-white rounded-[32px] w-full max-w-sm p-8 shadow-2xl overflow-hidden relative"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="absolute top-0 right-0 w-24 h-24 bg-[#006400]/5 -mr-8 -mt-8 rounded-full" />
+              <div className="relative text-center">
+                <div className="w-16 h-16 bg-[#006400] text-white rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+                  <Wallet size={32} />
+                </div>
+                <h3 className="text-2xl font-black text-gray-900 mb-2">Add Balance</h3>
+                <p className="text-sm text-gray-500 font-bold mb-6">Payment Methods for Manual Top-up</p>
+                
+                <div className="space-y-3">
+                  <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                    <p className="text-[10px] font-black uppercase text-gray-400 mb-1">Payment Number</p>
+                    <p className="text-2xl font-black text-[#006400]">01876357998</p>
+                    <p className="text-[10px] font-bold text-gray-400 mt-1 uppercase">( Send Money )</p>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-2 text-left">
+                     {['Bkash', 'Nagad', 'Rocket', 'Upay', 'Dutch-Bangla'].map(m => (
+                       <div key={m} className="bg-gray-50 px-3 py-2 rounded-xl text-[10px] font-bold text-gray-600 flex items-center gap-2">
+                         <div className="w-2 h-2 bg-[#006400] rounded-full" />
+                         {m}
+                       </div>
+                     ))}
+                  </div>
+                </div>
+
+                <div className="mt-8">
+                  <button 
+                    onClick={() => setShowPaymentInfo(false)}
+                    className="w-full bg-[#006400] text-white font-black py-4 rounded-2xl shadow-xl shadow-[#006400]/20 active:scale-95 transition-all"
+                  >
+                    Got it
+                  </button>
+                  <p className="mt-4 text-[10px] font-bold text-gray-400 uppercase">After Payment, Send Screenshot to Agent</p>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
 const DashboardIcon = ({ icon, label, onClick }: any) => (
-  <button onClick={onClick} className="flex flex-col items-center gap-2 group">
+  <button onClick={onClick} className="flex flex-col items-center gap-2 group cursor-pointer active:scale-90 transition-all">
     <div className="w-14 h-14 bg-gray-50 border border-gray-100 rounded-2xl flex items-center justify-center transition-all group-hover:bg-white group-hover:shadow-md group-hover:scale-105">
       {React.cloneElement(icon as React.ReactElement, { size: 28 })}
     </div>
@@ -484,7 +540,7 @@ const DashboardIcon = ({ icon, label, onClick }: any) => (
 );
 
 const SocialIcon = ({ icon, label, href }: any) => (
-  <a href={href} target="_blank" rel="noreferrer" className="flex flex-col items-center gap-2 group">
+  <a href={href} target="_blank" rel="noreferrer" className="flex flex-col items-center gap-2 group active:scale-90 transition-all">
     <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm border border-gray-100 group-hover:shadow-md transition-all">
       {React.cloneElement(icon as React.ReactElement, { size: 24 })}
     </div>
@@ -495,7 +551,7 @@ const SocialIcon = ({ icon, label, href }: any) => (
 const BottomNavItem = ({ icon, label, onClick, isActive }: any) => (
   <button 
     onClick={onClick}
-    className={`flex flex-col items-center gap-1 flex-1 transition-all ${isActive ? 'scale-110 opacity-100' : 'opacity-60 hover:opacity-100'}`}
+    className={`flex flex-col items-center gap-1 flex-1 transition-all active:scale-90 ${isActive ? 'scale-110 opacity-100' : 'opacity-60 hover:opacity-100'}`}
   >
     {icon}
     <span className="text-[10px] font-black uppercase tracking-widest">{label}</span>

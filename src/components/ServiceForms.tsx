@@ -24,7 +24,7 @@ const ServiceHeader = ({ id, defaultTitle, defaultColor, icon: Icon }: any) => {
         {config?.priceInfo ? (
           <p className="text-[10px] font-bold text-[#006400]">{config.priceInfo}</p>
         ) : (
-          <p className="text-[10px] font-bold text-[#006400]">Bkash/Nagad: 01876357998</p>
+          <p className="text-[10px] font-bold text-[#006400]">Payment: 01876357998 (All Local Methods)</p>
         )}
         {config?.description && <p className="text-[10px] text-gray-400 mt-0.5">{config.description}</p>}
       </div>
@@ -422,7 +422,7 @@ export const SimOffers = ({ onBack, onSuccess }: { onBack: () => void, onSuccess
                 <div>
                   <p className="text-[10px] font-black text-gray-400 uppercase leading-none mb-1">Total to Pay</p>
                   <p className="text-2xl font-black text-gray-900">{purchasingOffer.price} TK</p>
-                  <p className="text-[10px] font-bold text-[#006400] mt-1">Bkash/Nagad: 01876357998</p>
+                  <p className="text-[10px] font-bold text-[#006400] mt-1 line-clamp-1">Bkash/Nagad/Rocket/Upay/Dutch: 01876357998</p>
                 </div>
                 <div className="text-right">
                   <p className="text-xs font-bold text-gray-500">{purchasingOffer.title}</p>
@@ -445,14 +445,14 @@ export const SimOffers = ({ onBack, onSuccess }: { onBack: () => void, onSuccess
                 <div>
                   <label className="block text-[10px] font-black uppercase text-gray-400 mb-2 ml-1">Select Method</label>
                   <div className="grid grid-cols-2 gap-3">
-                    {['Bkash', 'Nagad'].map(m => (
+                    {['Bkash', 'Nagad', 'Rocket', 'Upay', 'Dutch'].map(m => (
                       <button 
                         key={m} 
                         type="button" 
                         onClick={() => setPurchaseData({...purchaseData, method: m})}
-                        className={`p-4 rounded-xl font-black transition-all ${purchaseData.method === m ? 'bg-pink-600 text-white shadow-lg' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'}`}
+                        className={`p-4 rounded-xl font-black transition-all ${purchaseData.method === m ? 'bg-[#006400] text-white shadow-lg' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'}`}
                       >
-                        {m === 'Bkash' ? 'bKash' : 'Nagad'}
+                        {m === 'Bkash' ? 'bKash' : m === 'Dutch' ? 'DBBL' : m}
                       </button>
                     ))}
                   </div>

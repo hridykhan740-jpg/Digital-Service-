@@ -105,9 +105,10 @@ service cloud.firestore {
         return data.id is string &&
                data.title is string && data.title.size() <= 100 &&
                data.active is bool &&
+               (!("adminOnly" in data) || data.adminOnly is bool) &&
                data.keys().hasAll(["id", "title", "active"]);
       }
-      allow read: if true;
+      allow read: if !existing().get('adminOnly', false) || isAdmin();
       allow write: if isAdmin() && isValidService(incoming());
     }
   }

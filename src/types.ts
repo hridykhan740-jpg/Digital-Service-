@@ -7,6 +7,7 @@ export interface PlatformService {
   icon: string; // Lucide icon name
   active: boolean;
   priceInfo?: string;
+  adminOnly?: boolean;
 }
 
 export interface UserProfile {

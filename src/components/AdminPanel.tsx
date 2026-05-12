@@ -56,7 +56,8 @@ export const AdminPanel: React.FC = () => {
     title: '',
     description: '',
     active: true,
-    priceInfo: ''
+    priceInfo: '',
+    adminOnly: false
   });
 
   useEffect(() => {
@@ -124,9 +125,10 @@ export const AdminPanel: React.FC = () => {
         title: newService.title || '',
         description: newService.description || '',
         active: newService.active ?? true,
-        priceInfo: newService.priceInfo || ''
+        priceInfo: newService.priceInfo || '',
+        adminOnly: newService.adminOnly || false
       });
-      setNewService({ id: '', title: '', description: '', active: true, priceInfo: '' });
+      setNewService({ id: '', title: '', description: '', active: true, priceInfo: '', adminOnly: false });
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, "services");
     }
@@ -367,6 +369,17 @@ export const AdminPanel: React.FC = () => {
                      <label className="block text-[10px] font-black uppercase text-gray-400 mb-2 tracking-widest">Description</label>
                      <textarea value={newService.description} onChange={e => setNewService({...newService, description: e.target.value})} className="w-full bg-gray-50 border-0 p-4 rounded-xl h-24" placeholder="Service details..." />
                   </div>
+                  <div className="md:col-span-3 flex items-center gap-4 bg-gray-50 p-4 rounded-xl">
+                     <label className="flex items-center gap-2 cursor-pointer">
+                        <input 
+                           type="checkbox" 
+                           checked={newService.adminOnly} 
+                           onChange={e => setNewService({...newService, adminOnly: e.target.checked})}
+                           className="w-5 h-5 accent-[#006400]"
+                        />
+                        <span className="text-xs font-bold text-gray-700 uppercase">Admin Only Service</span>
+                     </label>
+                  </div>
                   <div className="md:col-span-3 flex items-end">
                      <button type="submit" className="w-full bg-[#006400] text-white font-black py-4 rounded-xl uppercase tracking-widest hover:bg-[#004d00] transition-all shadow-lg">
                        Update/Add Service
@@ -379,9 +392,16 @@ export const AdminPanel: React.FC = () => {
                {services.map(service => (
                  <div key={service.id} className={`p-6 rounded-3xl shadow-sm border transition-all ${service.active ? 'bg-white border-gray-100' : 'bg-gray-50 border-gray-200 grayscale'}`}>
                     <div className="flex justify-between items-start mb-4">
-                       <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase ${service.active ? 'bg-green-100 text-green-600' : 'bg-gray-200 text-gray-400'}`}>
-                          {service.active ? 'Active' : 'Disabled'}
-                       </span>
+                       <div className="flex gap-2">
+                         <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase ${service.active ? 'bg-green-100 text-green-600' : 'bg-gray-200 text-gray-400'}`}>
+                            {service.active ? 'Active' : 'Disabled'}
+                         </span>
+                         {service.adminOnly && (
+                           <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase bg-red-100 text-red-600">
+                              Admin Only
+                           </span>
+                         )}
+                       </div>
                     <div className="flex gap-2">
                        <button onClick={() => setNewService(service)} className="p-2 rounded-xl text-xs font-black uppercase transition-all bg-amber-50 text-amber-600 hover:bg-amber-100">
                           Edit
