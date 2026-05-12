@@ -11,6 +11,7 @@ import {
   doc, 
   getDoc, 
   setDoc, 
+  collection,
   onSnapshot,
   serverTimestamp 
 } from "firebase/firestore";
@@ -47,56 +48,85 @@ import {
   SimOffers 
 } from "./components/ServiceForms";
 import { AdminPanel } from "./components/AdminPanel";
-import { ADMIN_EMAIL, UserProfile } from "./types";
+import { ADMIN_EMAILS, UserProfile, PlatformService } from "./types";
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [services, setServices] = useState<PlatformService[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeService, setActiveService] = useState<string | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
   const [isAdminView, setIsAdminView] = useState(false);
   const [showBalance, setShowBalance] = useState(false);
 
+  const [authLoading, setAuthLoading] = useState(false);
+
   useEffect(() => {
-    const unsubAuth = onAuthStateChanged(auth, async (u) => {
-      setUser(u);
-      if (u) {
-        // Check if profile exists
-        const profileDoc = await getDoc(doc(db, "users", u.uid));
-        if (!profileDoc.exists()) {
-          // If using google auth, auto-create a basic profile if missing
-          const newProfile: UserProfile = {
-            uid: u.uid,
-            name: u.displayName || "New User",
-            mobile: u.phoneNumber || "01XXX-XXXXXX",
-            balance: 0,
-            role: u.email === ADMIN_EMAIL ? 'admin' : 'user',
-            createdAt: serverTimestamp()
-          };
-          await setDoc(doc(db, "users", u.uid), newProfile);
-          setProfile(newProfile);
-        } else {
-          setProfile(profileDoc.data() as UserProfile);
-        }
-        
-        // Listen to profile updates (for balance/role changes)
-        onSnapshot(doc(db, "users", u.uid), (doc) => {
-          if (doc.exists()) setProfile(doc.data() as UserProfile);
-        });
-      } else {
-        setProfile(null);
-      }
-      setLoading(false);
+    // Listen to services
+    const unsubServices = onSnapshot(collection(db, "services"), (snapshot) => {
+      setServices(snapshot.docs.map(doc => doc.data() as PlatformService));
     });
-    return () => unsubAuth();
+
+    const unsubAuth = onAuthStateChanged(auth, async (u) => {
+      try {
+        setUser(u);
+        if (u) {
+          // Check if profile exists
+          const profileDoc = await getDoc(doc(db, "users", u.uid));
+          if (!profileDoc.exists()) {
+            // If using google auth, auto-create a basic profile if missing
+            const newProfile: UserProfile = {
+              uid: u.uid,
+              name: u.displayName || "New User",
+              mobile: u.phoneNumber || "01XXX-XXXXXX",
+              balance: 0,
+              role: (u.email && ADMIN_EMAILS.includes(u.email)) ? 'admin' : 'user',
+              createdAt: serverTimestamp()
+            };
+            await setDoc(doc(db, "users", u.uid), newProfile);
+            setProfile(newProfile);
+          } else {
+            setProfile(profileDoc.data() as UserProfile);
+          }
+          
+          // Listen to profile updates (for balance/role changes)
+          onSnapshot(doc(db, "users", u.uid), (doc) => {
+            if (doc.exists()) setProfile(doc.data() as UserProfile);
+          }, (err) => {
+            handleFirestoreError(err, OperationType.GET, `users/${u.uid}`);
+          });
+        } else {
+          setProfile(null);
+        }
+      } catch (err) {
+        console.error("Auth state change error:", err);
+      } finally {
+        setLoading(false);
+      }
+    });
+
+    return () => {
+      unsubAuth();
+      unsubServices();
+    };
   }, []);
 
   const login = async () => {
+    setAuthLoading(true);
     try {
-      await signInWithPopup(auth, new GoogleAuthProvider());
-    } catch (err) {
-      console.error(err);
+      const provider = new GoogleAuthProvider();
+      // Ensure popup is allowed
+      await signInWithPopup(auth, provider);
+    } catch (err: any) {
+      console.error("Login Error:", err);
+      if (err.code === 'auth/popup-blocked') {
+        alert("আপনার ব্রাউজার পপ-আপ ব্লক করেছে। অনুগ্রহ করে পপ-আপ এলাউ করুন।");
+      } else {
+        alert("লগইন করতে সমস্যা হচ্ছে: " + (err.code || err.message));
+      }
+    } finally {
+      setAuthLoading(false);
     }
   };
 
@@ -126,30 +156,125 @@ export default function App() {
 
   if (!user) {
     return (
-      <div className="h-screen flex flex-col items-center justify-center bg-[#F4F4F4] p-6 text-center overflow-hidden">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }} 
-          animate={{ opacity: 1, y: 0 }} 
-          className="max-w-md w-full bg-white p-8 rounded-2xl shadow-xl border-t-4 border-[#006400]"
-        >
-          <div className="mb-6">
-            <div className="w-20 h-20 bg-[#006400] rounded-full flex items-center justify-center mx-auto mb-4 text-white">
-              <Zap size={40} />
+      <div className="min-h-screen flex flex-col bg-[#F4F7FE] items-center">
+        {/* Top Header Background */}
+        <div className="w-full h-16 bg-[#006400]" />
+        
+        {/* Logo Section */}
+        <div className="mt-8 mb-8">
+          <div className="w-32 h-32 bg-white rounded-full flex flex-col items-center justify-center shadow-lg border border-gray-100 p-2 overflow-hidden">
+            <div className="flex flex-col items-center">
+               <div className="w-16 h-12 relative flex items-center justify-center">
+                  <div className="absolute inset-0 bg-blue-600 rotate-12 rounded-lg opacity-20" />
+                  <Smartphone className="text-blue-600" size={32} />
+                  <Globe className="absolute -top-1 -right-1 text-green-500" size={16} />
+               </div>
+               <div className="text-[10px] font-black uppercase text-blue-900 mt-1 flex flex-col items-center leading-none">
+                  <span className="text-blue-600">BEST</span>
+                  <span className="text-green-700">TELECOM</span>
+               </div>
             </div>
-            <h1 className="text-3xl font-black uppercase tracking-tight text-gray-900 leading-none">
-              Service Point <span className="text-[#006400]">BD</span>
-            </h1>
-            <p className="text-gray-500 font-medium mt-2">Professional Digital Solutions</p>
           </div>
-          
-          <button 
-            onClick={login}
-            className="flex items-center justify-center gap-3 w-full bg-[#006400] text-white font-bold py-4 rounded-xl hover:bg-[#004d00] transition-all shadow-lg active:scale-95"
-          >
-            <LogIn size={20} /> Login with Google
-          </button>
+        </div>
+
+        {/* Login Card */}
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }} 
+          animate={{ opacity: 1, scale: 1 }} 
+          className="w-[90%] max-w-md bg-white p-8 rounded-[32px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] space-y-6"
+        >
+          {/* Inputs */}
+          <div className="space-y-4">
+            <div className="relative">
+               <div className="absolute left-4 top-1/2 -translate-y-1/2 text-green-700">
+                  <MessageSquare size={20} />
+               </div>
+               <input 
+                type="text" 
+                placeholder="Mobile number" 
+                className="w-full bg-[#F0F2F5] border-0 py-4 pl-12 pr-4 rounded-xl font-bold placeholder:text-gray-400 focus:ring-2 ring-green-700/20"
+               />
+            </div>
+            <div className="relative">
+               <div className="absolute left-4 top-1/2 -translate-y-1/2 text-green-700">
+                  <ShieldCheck size={20} />
+               </div>
+               <input 
+                type="password" 
+                placeholder="Password" 
+                className="w-full bg-[#F0F2F5] border-0 py-4 pl-12 pr-4 rounded-xl font-bold placeholder:text-gray-400 focus:ring-2 ring-green-700/20"
+               />
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="space-y-3">
+             <button 
+              onClick={login}
+              disabled={authLoading}
+              className="w-full py-4 border-2 border-green-700 text-green-700 font-black rounded-full uppercase tracking-widest hover:bg-green-50 transition-all active:scale-95 disabled:opacity-50"
+             >
+               {authLoading ? 'Loading...' : 'Login'}
+             </button>
+             
+             <button 
+              onClick={login}
+              className="w-full py-4 bg-[#006400] text-white font-black rounded-full uppercase tracking-widest shadow-xl shadow-green-900/20 hover:bg-green-800 transition-all active:scale-95"
+             >
+               Register a New Account
+             </button>
+          </div>
+
+          <div className="text-center">
+             <button className="text-green-700 font-bold text-sm">Forgot password ?</button>
+          </div>
+
+          <p className="text-[10px] text-center text-gray-500 font-bold flex flex-wrap justify-center gap-1">
+             By logging or Reg, you agree to our 
+             <span className="text-green-700">Privacy Policy</span>
+          </p>
+        </motion.div>
+
+        {/* Bottom Social Grid */}
+        <div className="mt-8 w-[90%] max-w-md bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
+           <div className="grid grid-cols-4 gap-2">
+              <SocialIconItem href="https://wa.me/+8801876357998" icon={<MessageSquare className="text-green-500" />} label="Whatsapp" />
+              <SocialIconItem href="https://t.me/user" icon={<Send className="text-blue-500" />} label="Telegram" />
+              <SocialIconItem href="https://www.facebook.com/share/18kDS9BVwe/" icon={<Facebook className="text-blue-700" />} label="Facebook" />
+              <SocialIconItem icon={<Smartphone className="text-green-700" />} label="Helpline" />
+           </div>
+        </div>
+
+        {/* Snackbar-like Toast (Simulation from image) */}
+        <motion.div 
+          initial={{ opacity: 0, y: 100 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="fixed bottom-10 bg-white shadow-xl px-4 py-2 border rounded-full flex items-center gap-2"
+        >
+          <div className="w-6 h-6 flex items-center justify-center">
+             <Smartphone size={14} className="text-blue-600" />
+          </div>
+          <span className="text-[10px] font-bold text-gray-700">An error occurred</span>
         </motion.div>
       </div>
+    );
+  }
+
+  // Adding the helper component inside App or outside
+  function SocialIconItem({ icon, label, href }: { icon: any, label: string, href?: string }) {
+    const Component = href ? 'a' : 'div';
+    return (
+      <Component 
+        href={href} 
+        target={href ? "_blank" : undefined}
+        rel={href ? "noreferrer" : undefined}
+        className="flex flex-col items-center gap-1 group cursor-pointer active:scale-95 transition-all"
+      >
+        <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center overflow-hidden shadow-sm group-hover:shadow-md transition-all">
+           {React.cloneElement(icon, { size: 28 })}
+        </div>
+        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-tighter">{label}</span>
+      </Component>
     );
   }
 
@@ -161,7 +286,7 @@ export default function App() {
               <ShieldCheck size={20} />
               <span className="font-bold tracking-tight">ADMIN DASHBOARD</span>
             </div>
-            <button onClick={() => setIsAdminView(false)} className="text-xs font-bold bg-white text-[#006400] px-4 py-1.5 rounded-full hover:bg-gray-100 transition-colors">Exit Admin</button>
+            <button onClick={() => setIsAdminView(false)} className="text-xs font-bold bg-white text-[#006400] px-4 py-1.5 rounded-full hover:bg-gray-100 transition-colors active:scale-95">Exit Admin</button>
          </div>
          <AdminPanel />
        </div>
@@ -174,15 +299,15 @@ export default function App() {
       <header className="bg-[#006400] p-4 text-white flex justify-between items-center sticky top-0 z-40 shadow-md">
         <div className="flex items-center gap-4">
           <Menu size={24} />
-          <h1 className="font-bold text-xl uppercase tracking-wider">Service Point BD</h1>
+          <h1 className="font-bold text-xl uppercase tracking-wider">Àbdüllāh Aĺ Hỗŝŝâîň</h1>
         </div>
         <div className="flex items-center gap-2">
            {profile?.role === 'admin' && (
-             <button onClick={() => setIsAdminView(true)} className="p-2 hover:bg-[#004d00] rounded-full">
+             <button onClick={() => setIsAdminView(true)} className="p-2 hover:bg-[#004d00] rounded-full active:scale-90 transition-all">
                <LayoutDashboard size={20} />
              </button>
            )}
-           <button onClick={logout} className="p-2 hover:bg-[#004d00] rounded-full">
+           <button onClick={logout} className="p-2 hover:bg-[#004d00] rounded-full active:scale-90 transition-all">
               <LogOut size={20} />
            </button>
         </div>
@@ -247,11 +372,29 @@ export default function App() {
               <section className="bg-white rounded-3xl p-6 shadow-sm">
                  <h2 className="text-sm font-bold text-gray-400 mb-6 uppercase tracking-widest pl-2">Quick Services</h2>
                  <div className="grid grid-cols-4 gap-y-8 gap-x-4">
-                    <DashboardIcon icon={<PlusCircle className="text-blue-600" />} label="Verification" onClick={() => setActiveService('fb')} />
-                    <DashboardIcon icon={<Globe className="text-purple-600" />} label="Web Dev" onClick={() => setActiveService('web')} />
-                    <DashboardIcon icon={<Smartphone className="text-emerald-600" />} label="App Dev" onClick={() => setActiveService('app')} />
-                    <DashboardIcon icon={<Zap className="text-amber-500" />} label="All Offers" onClick={() => setActiveService('sim')} />
+                    {/* Hardcoded defaults if Firestore is empty or for mapping */}
+                    {[
+                      { id: 'fb', icon: <PlusCircle className="text-blue-600" />, label: 'Verification', dbId: 'facebook_verification' },
+                      { id: 'web', icon: <Globe className="text-purple-600" />, label: 'Web Dev', dbId: 'website_dev' },
+                      { id: 'app', icon: <Smartphone className="text-emerald-600" />, label: 'App Dev', dbId: 'app_dev' },
+                      { id: 'sim', icon: <Zap className="text-amber-500" />, label: 'All Offers', dbId: 'sim_offer' },
+                    ].map(item => {
+                      const serviceConfig = services.find(s => s.id === item.dbId);
+                      // If service configuration exists in Firestore, use its active status. 
+                      // If not, show it as active by default for standard ones.
+                      if (serviceConfig && !serviceConfig.active) return null;
+                      
+                      return (
+                        <DashboardIcon 
+                          key={item.id} 
+                          icon={item.icon} 
+                          label={serviceConfig?.title || item.label} 
+                          onClick={() => setActiveService(item.id)} 
+                        />
+                      );
+                    })}
                     
+                    {/* Other static icons */}
                     <DashboardIcon icon={<ArrowRightLeft className="text-gray-600" />} label="Transfer" />
                     <DashboardIcon icon={<Wallet className="text-[#006400]" />} label="Payments" />
                     <DashboardIcon icon={<Users className="text-red-500" />} label="My Team" />
@@ -266,9 +409,9 @@ export default function App() {
                    <span className="text-[10px] bg-red-50 text-red-600 px-2 py-0.5 rounded">LIVE HELP</span>
                  </h2>
                  <div className="grid grid-cols-4 gap-4">
-                    <SocialIcon icon={<MessageSquare className="text-green-500" />} label="WhatsApp" href="https://wa.me/01700000000" />
+                    <SocialIcon icon={<MessageSquare className="text-green-500" />} label="WhatsApp" href="https://wa.me/+8801876357998" />
                     <SocialIcon icon={<Send className="text-blue-400" />} label="Telegram" href="https://t.me/user" />
-                    <SocialIcon icon={<Facebook className="text-blue-600" />} label="Facebook" href="https://fb.com/user" />
+                    <SocialIcon icon={<Facebook className="text-blue-600" />} label="Facebook" href="https://www.facebook.com/share/18kDS9BVwe/" />
                     <SocialIcon icon={<Youtube className="text-red-600" />} label="Youtube" href="https://youtube.com" />
                  </div>
               </section>
@@ -367,10 +510,10 @@ const AgentLinks = ({ onBack }: { onBack: () => void }) => (
     <h2 className="text-2xl font-black uppercase tracking-tight mb-8 text-[#006400]">Contact Agent</h2>
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
       {[
-        { name: 'WhatsApp', icon: <MessageSquare />, link: 'https://wa.me/01700000000', color: 'bg-green-500' },
-        { name: 'Facebook', icon: <Facebook />, link: 'https://fb.com/user', color: 'bg-blue-600' },
-        { name: 'Instagram', icon: <Instagram />, link: 'https://instagram.com/user', color: 'bg-pink-600' },
-        { name: 'Gmail', icon: <Mail />, link: 'mailto:hridykhan740@gmail.com', color: 'bg-red-600' }
+        { name: 'WhatsApp', icon: <MessageSquare />, link: 'https://wa.me/+8801876357998', color: 'bg-green-500' },
+        { name: 'Facebook', icon: <Facebook />, link: 'https://www.facebook.com/share/18kDS9BVwe/', color: 'bg-blue-600' },
+        { name: 'Instagram', icon: <Instagram />, link: 'https://www.instagram.com/ali_8khan?igsh=N2FxZnVuZjR3ZWZ1', color: 'bg-pink-600' },
+        { name: 'Gmail', icon: <Mail />, link: 'mailto:mhossenali740@gmail.com', color: 'bg-red-600' }
       ].map(link => (
         <a 
           key={link.name}

@@ -1,9 +1,36 @@
 import React, { useState, useEffect } from "react";
-import { collection, addDoc, query, where, onSnapshot, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, collection, addDoc, query, where, onSnapshot, serverTimestamp } from "firebase/firestore";
 import { db, auth, OperationType, handleFirestoreError } from "../lib/firebase";
-import { SimOffer } from "../types";
+import { SimOffer, PlatformService } from "../types";
 import { Smartphone, Globe, Facebook, ArrowLeft, Upload, Zap, CheckCircle, AlertCircle } from "lucide-react";
 import { motion } from "motion/react";
+
+const ServiceHeader = ({ id, defaultTitle, defaultColor, icon: Icon }: any) => {
+  const [config, setConfig] = useState<PlatformService | null>(null);
+
+  useEffect(() => {
+    getDoc(doc(db, "services", id)).then(snap => {
+      if (snap.exists()) setConfig(snap.data() as PlatformService);
+    });
+  }, [id]);
+
+  return (
+    <div className="flex items-center gap-3">
+      <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${defaultColor}`}>
+        <Icon size={28} />
+      </div>
+      <div>
+        <h2 className="text-2xl font-black uppercase text-gray-900">{config?.title || defaultTitle}</h2>
+        {config?.priceInfo ? (
+          <p className="text-[10px] font-bold text-[#006400]">{config.priceInfo}</p>
+        ) : (
+          <p className="text-[10px] font-bold text-[#006400]">Bkash/Nagad: 01876357998</p>
+        )}
+        {config?.description && <p className="text-[10px] text-gray-400 mt-0.5">{config.description}</p>}
+      </div>
+    </div>
+  );
+};
 
 export const FacebookForm = ({ onBack, onSuccess }: { onBack: () => void, onSuccess: () => void }) => {
   const [formData, setFormData] = useState({ name: '', link: '', phone: '' });
@@ -46,12 +73,13 @@ export const FacebookForm = ({ onBack, onSuccess }: { onBack: () => void, onSucc
       <button onClick={onBack} className="flex items-center gap-2 text-sm font-bold text-[#006400]">
         <ArrowLeft size={16} /> Back
       </button>
-      <div className="flex items-center gap-3">
-        <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600">
-          <Facebook size={28} />
-        </div>
-        <h2 className="text-2xl font-black uppercase text-gray-900">FB Verification</h2>
-      </div>
+      
+      <ServiceHeader 
+        id="facebook_verification" 
+        defaultTitle="FB Verification" 
+        defaultColor="bg-blue-100 text-blue-600" 
+        icon={Facebook} 
+      />
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
@@ -119,12 +147,13 @@ export const WebsiteForm = ({ onBack, onSuccess }: { onBack: () => void, onSucce
       <button onClick={onBack} className="flex items-center gap-2 text-sm font-bold text-[#006400]">
         <ArrowLeft size={16} /> Back
       </button>
-      <div className="flex items-center gap-3">
-        <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center text-purple-600">
-          <Globe size={28} />
-        </div>
-        <h2 className="text-2xl font-black uppercase text-gray-900">Website Dev</h2>
-      </div>
+
+      <ServiceHeader 
+        id="website_dev" 
+        defaultTitle="Website Dev" 
+        defaultColor="bg-purple-100 text-purple-600" 
+        icon={Globe} 
+      />
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
@@ -182,12 +211,13 @@ export const AppForm = ({ onBack, onSuccess }: { onBack: () => void, onSuccess: 
       <button onClick={onBack} className="flex items-center gap-2 text-sm font-bold text-[#006400]">
         <ArrowLeft size={16} /> Back
       </button>
-      <div className="flex items-center gap-3">
-        <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600">
-          <Smartphone size={28} />
-        </div>
-        <h2 className="text-2xl font-black uppercase text-gray-900">App Development</h2>
-      </div>
+
+      <ServiceHeader 
+        id="app_dev" 
+        defaultTitle="App Development" 
+        defaultColor="bg-emerald-100 text-emerald-600" 
+        icon={Smartphone} 
+      />
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
@@ -349,7 +379,7 @@ export const SimOffers = ({ onBack, onSuccess }: { onBack: () => void, onSuccess
                   </div>
                   <button 
                     onClick={() => setPurchasingOffer(offer)}
-                    className="w-full sm:w-auto bg-[#006400] text-white font-black text-sm px-8 py-3 rounded-2xl uppercase tracking-wider hover:bg-[#004d00] transition-all"
+                    className="w-full sm:w-auto bg-[#006400] text-white font-black text-sm px-8 py-3 rounded-2xl uppercase tracking-wider hover:bg-[#004d00] transition-all active:scale-95"
                   >
                     Buy Now
                   </button>
@@ -392,6 +422,7 @@ export const SimOffers = ({ onBack, onSuccess }: { onBack: () => void, onSuccess
                 <div>
                   <p className="text-[10px] font-black text-gray-400 uppercase leading-none mb-1">Total to Pay</p>
                   <p className="text-2xl font-black text-gray-900">{purchasingOffer.price} TK</p>
+                  <p className="text-[10px] font-bold text-[#006400] mt-1">Bkash/Nagad: 01876357998</p>
                 </div>
                 <div className="text-right">
                   <p className="text-xs font-bold text-gray-500">{purchasingOffer.title}</p>

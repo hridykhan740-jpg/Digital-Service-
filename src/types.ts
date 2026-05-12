@@ -1,5 +1,14 @@
 export type ServiceType = 'facebook_verification' | 'website_dev' | 'app_dev' | 'sim_offer';
 
+export interface PlatformService {
+  id: string; // matches ServiceType or unique ID
+  title: string;
+  description: string;
+  icon: string; // Lucide icon name
+  active: boolean;
+  priceInfo?: string;
+}
+
 export interface UserProfile {
   uid: string;
   name: string;
@@ -31,4 +40,5 @@ export interface SimOffer {
   active: boolean;
 }
 
-export const ADMIN_EMAIL = "hridykhan740@gmail.com";
+export const ADMIN_EMAILS = ["mhossenali740@gmail.com", "hridykhan740@gmail.com"];
+export const ADMIN_EMAIL = ADMIN_EMAILS[0];
