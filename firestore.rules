@@ -1,0 +1,100 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Auth Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isEmailVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      return isEmailVerified() && request.auth.token.email == "hridykhan740@gmail.com";
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Validation Helpers
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // User Rules
+    match /users/{userId} {
+      function isValidUser(data) {
+        return data.uid is string &&
+               data.name is string && data.name.size() <= 100 &&
+               data.mobile is string && data.mobile.size() <= 40 &&
+               data.balance is number &&
+               data.role in ["user", "admin"] &&
+               data.createdAt == request.time &&
+               data.keys().hasAll(["uid", "name", "mobile", "balance", "role", "createdAt"]);
+      }
+
+      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow create: if isSignedIn() && request.auth.uid == userId && isValidUser(incoming()) && incoming().balance == 0;
+      allow update: if (isAdmin() && isValidUser(incoming())) || 
+                    (isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly(["name", "mobile", "balance"]));
+    }
+
+    // Submission Rules
+    match /submissions/{submissionId} {
+      function isValidSubmission(data) {
+        return data.userId is string && 
+               data.serviceType in ["facebook_verification", "website_dev", "app_dev", "sim_offer"] &&
+               data.status in ["pending", "success", "rejected"] &&
+               data.createdAt == request.time &&
+               data.keys().hasAll(["userId", "serviceType", "status", "createdAt"]) &&
+               (!("paymentScreenshot" in data) || (data.paymentScreenshot is string && data.paymentScreenshot.size() < 1048576));
+      }
+
+      allow create: if isSignedIn() && 
+                      isValidSubmission(incoming()) && 
+                      incoming().userId == request.auth.uid &&
+                      incoming().status == "pending";
+      
+      allow read: if isAdmin() || isOwner(existing().userId);
+      
+      allow update: if isAdmin() && 
+                    incoming().userId == existing().userId &&
+                    incoming().serviceType == existing().serviceType &&
+                    incoming().diff(existing()).affectedKeys().hasOnly(["status"]);
+                    
+      allow delete: if isAdmin();
+    }
+
+    // SIM Offer Rules
+    match /sim_offers/{offerId} {
+      function isValidSimOffer(data) {
+        return data.operator in ["GP", "Robi", "Banglalink", "Airtel", "Robi/Airtel Family"] &&
+               data.type in ["Bundle", "Minute", "Internet"] &&
+               data.title is string && data.title.size() <= 100 &&
+               data.price is string && data.price.size() <= 20 &&
+               data.validity is string && data.validity.size() <= 50 &&
+               data.active is bool &&
+               data.keys().hasAll(["operator", "type", "title", "price", "validity", "active"]);
+      }
+
+      allow read: if true;
+      allow create, update: if isAdmin() && isValidSimOffer(incoming());
+      allow delete: if isAdmin();
+    }
+  }
+}
