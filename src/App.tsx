@@ -5,6 +5,8 @@ import {
   signInWithPopup, 
   signOut, 
   onAuthStateChanged,
+  setPersistence,
+  browserLocalPersistence,
   User
 } from "firebase/auth";
 import { 
@@ -118,6 +120,7 @@ export default function App() {
   const login = async () => {
     setAuthLoading(true);
     try {
+      await setPersistence(auth, browserLocalPersistence);
       const provider = new GoogleAuthProvider();
       // Ensure popup is allowed
       await signInWithPopup(auth, provider);
@@ -217,7 +220,7 @@ export default function App() {
               disabled={authLoading}
               className="w-full py-4 border-2 border-green-700 text-green-700 font-black rounded-full uppercase tracking-widest hover:bg-green-50 transition-all active:scale-95 disabled:opacity-50"
              >
-               {authLoading ? 'Loading...' : 'Login'}
+               {authLoading ? 'Wait...' : 'Login with Google'}
              </button>
              
              <button 
@@ -225,7 +228,7 @@ export default function App() {
               disabled={authLoading}
               className="w-full py-4 bg-[#006400] text-white font-black rounded-full uppercase tracking-widest shadow-xl shadow-green-900/20 hover:bg-green-800 transition-all active:scale-95 disabled:opacity-50"
              >
-               {authLoading ? 'Registering...' : 'Register a New Account'}
+               {authLoading ? 'Processing...' : 'Create Account'}
              </button>
           </div>
 
