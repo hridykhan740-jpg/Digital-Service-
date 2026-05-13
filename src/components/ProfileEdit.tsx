@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { User, Phone, Save, X } from 'lucide-react';
+import { User, Phone, Save, X, History } from 'lucide-react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { UserProfile } from '../types';
@@ -106,6 +106,16 @@ export const ProfileEdit: React.FC<ProfileEditProps> = ({ profile, onClose, onUp
             </>
           )}
         </button>
+
+        <div className="pt-4 border-t border-gray-100">
+          <button
+            type="button"
+            onClick={() => onUpdate({ showHistory: true } as any)}
+            className="w-full bg-white border-2 border-gray-100 text-gray-500 font-extrabold py-4 rounded-2xl flex items-center justify-center gap-3 hover:bg-gray-50 hover:text-[#006400] hover:border-[#006400]/20 transition-all active:scale-95"
+          >
+            <History size={20} /> View Service History
+          </button>
+        </div>
       </form>
     </div>
   );

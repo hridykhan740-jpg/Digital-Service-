@@ -46,8 +46,13 @@ service cloud.firestore {
              data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
              data.mobile is string && data.mobile.size() <= 20 &&
              data.balance is number && data.balance >= 0 &&
-             data.role in ['user', 'admin'] &&
+             data.role is string && data.role.size() <= 50 &&
              data.createdAt == request.time;
+    }
+
+    function isValidRole(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() <= 50 &&
+             data.permissions is list && data.permissions.size() <= 100;
     }
 
     function isValidSubmission(data) {
@@ -99,6 +104,29 @@ service cloud.firestore {
                       incoming().status in ['pending', 'completed', 'rejected', 'success'];
       
       allow delete: if isAdmin();
+    }
+
+    match /notes/{noteId} {
+      allow create: if isSignedIn() && 
+                      incoming().userId == request.auth.uid &&
+                      incoming().title is string && incoming().title.size() <= 200 &&
+                      incoming().content is string && incoming().content.size() <= 10000 &&
+                      incoming().createdAt == request.time;
+      
+      allow read, delete: if isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
+      
+      allow update: if isSignedIn() && 
+                      existing().userId == request.auth.uid &&
+                      incoming().userId == existing().userId &&
+                      incoming().diff(existing()).affectedKeys().hasOnly(['title', 'content', 'updatedAt']) &&
+                      incoming().title is string && incoming().title.size() <= 200 &&
+                      incoming().content is string && incoming().content.size() <= 10000 &&
+                      incoming().updatedAt == request.time;
+    }
+
+    match /roles/{roleId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
   }
 }

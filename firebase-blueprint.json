@@ -9,7 +9,7 @@
         "name": { "type": "string" },
         "mobile": { "type": "string" },
         "balance": { "type": "number" },
-        "role": { "type": "string", "enum": ["user", "admin"] },
+        "role": { "$ref": "#/entities/Role" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["uid", "name", "balance", "role"]
@@ -57,6 +57,32 @@
         "active": { "type": "boolean" }
       },
       "required": ["id", "operator", "type", "title", "price", "active"]
+    },
+    "Note": {
+      "title": "User Note",
+      "description": "Individual notes for user tally/tracking",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title", "content", "createdAt"]
+    },
+    "Role": {
+      "title": "User Role",
+      "description": "Role definitions with permissions",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "permissions": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "required": ["name", "permissions"]
     }
   },
   "firestore": {
@@ -75,6 +101,14 @@
     "sim_offers/{offerId}": {
       "schema": "SimOffer",
       "description": "Available SIM offers"
+    },
+    "notes/{noteId}": {
+      "schema": "Note",
+      "description": "Private user notes"
+    },
+    "roles/{roleId}": {
+      "schema": "Role",
+      "description": "Role definitions"
     }
   }
 }

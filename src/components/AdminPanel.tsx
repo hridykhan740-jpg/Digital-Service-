@@ -5,8 +5,10 @@ import {
   orderBy, 
   onSnapshot, 
   doc, 
+  getDoc,
   updateDoc, 
-  addDoc, 
+  increment,
+  addDoc,
   setDoc,
   deleteDoc, 
   serverTimestamp 
@@ -27,7 +29,8 @@ import {
   Users,
   TrendingUp,
   Settings,
-  LayoutGrid
+  LayoutGrid,
+  Search
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -38,6 +41,7 @@ export const AdminPanel: React.FC = () => {
   const [services, setServices] = useState<PlatformService[]>([]);
   const [activeTab, setActiveTab] = useState<'submissions' | 'offers' | 'users' | 'services'>('submissions');
   const [selectedScreenshot, setSelectedScreenshot] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
   
   // New Offer Form State
   const [newOffer, setNewOffer] = useState<Partial<SimOffer>>({
@@ -92,7 +96,24 @@ export const AdminPanel: React.FC = () => {
   const handleStatusUpdate = async (id: string, status: 'success' | 'rejected') => {
     if (!confirm(`Are you sure you want to mark this as ${status}?`)) return;
     try {
-      await updateDoc(doc(db, "submissions", id), { status });
+      const subRef = doc(db, "submissions", id);
+      const subDoc = await getDoc(subRef);
+      
+      if (subDoc.exists()) {
+        const subData = subDoc.data() as Submission;
+        
+        // If it's a topup and being approved
+        if (status === 'success' && subData.serviceType === 'top_up' && subData.status !== 'success') {
+          const amount = Number(subData.details.amount) || 0;
+          if (amount > 0) {
+            await updateDoc(doc(db, "users", subData.userId), {
+              balance: increment(amount)
+            });
+          }
+        }
+      }
+
+      await updateDoc(subRef, { status });
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `submissions/${id}`);
     }
@@ -153,6 +174,12 @@ export const AdminPanel: React.FC = () => {
     }
   };
 
+  const filteredSubmissions = submissions.filter(sub => 
+    sub.userEmail?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    sub.serviceType?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    Object.values(sub.details).some(val => String(val).toLowerCase().includes(searchTerm.toLowerCase()))
+  );
+
   return (
     <div className="max-w-6xl mx-auto p-4 md:p-8 bg-[#f0f2f5] min-h-screen">
       <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
@@ -177,11 +204,24 @@ export const AdminPanel: React.FC = () => {
         </div>
       </div>
 
+      {activeTab === 'submissions' && (
+        <div className="mb-6 relative">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+          <input 
+            type="text"
+            placeholder="Search by email, service type, or details..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full bg-white border border-gray-100 p-4 pl-12 rounded-2xl shadow-sm focus:ring-2 focus:ring-[#006400] outline-none font-bold"
+          />
+        </div>
+      )}
+
       <AnimatePresence mode="wait">
         {activeTab === 'submissions' && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-             {submissions.length === 0 && <p className="text-gray-400 italic">No submissions yet.</p>}
-             {submissions.map((sub) => (
+             {filteredSubmissions.length === 0 && <p className="text-gray-400 italic">No submissions found matching your search.</p>}
+             {filteredSubmissions.map((sub) => (
                 <div key={sub.id} className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex flex-col gap-4 relative overflow-hidden group hover:shadow-xl transition-all">
                   <div className={`absolute top-0 right-0 w-16 h-16 -mr-8 -mt-8 rotate-45 ${sub.status === 'success' ? 'bg-green-500' : sub.status === 'rejected' ? 'bg-red-500' : 'bg-amber-500'}`} />
                   

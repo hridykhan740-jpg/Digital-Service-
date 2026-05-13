@@ -236,6 +236,118 @@ export const AppForm = ({ onBack, onSuccess }: { onBack: () => void, onSuccess: 
   );
 };
 
+export const TopUpForm = ({ onBack, onSuccess }: { onBack: () => void, onSuccess: () => void }) => {
+  const [formData, setFormData] = useState({ amount: '', method: 'Bkash', trxId: '' });
+  const [screenshot, setScreenshot] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => setScreenshot(reader.result as string);
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!screenshot) return alert("Please upload payment screenshot!");
+    setLoading(true);
+    try {
+      await addDoc(collection(db, "submissions"), {
+        userId: auth.currentUser?.uid,
+        userEmail: auth.currentUser?.email,
+        serviceType: 'top_up',
+        details: formData,
+        paymentScreenshot: screenshot,
+        status: 'pending',
+        createdAt: serverTimestamp()
+      });
+      onSuccess();
+    } catch (err) {
+      handleFirestoreError(err, OperationType.CREATE, "submissions");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <button onClick={onBack} className="flex items-center gap-2 text-sm font-bold text-[#006400]">
+        <ArrowLeft size={16} /> Back
+      </button>
+
+      <div className="text-center space-y-2 mb-6">
+        <div className="w-20 h-20 bg-green-100 text-[#006400] rounded-3xl flex items-center justify-center mx-auto shadow-sm">
+          <Upload size={40} />
+        </div>
+        <h2 className="text-3xl font-black text-gray-900 uppercase">Top Up Balance</h2>
+        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest leading-tight">Send Money to 01876357998<br/>Then submit details below</p>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="block text-[10px] font-black uppercase text-gray-400 mb-2">Amount (TK)</label>
+          <input 
+            required 
+            type="number" 
+            className="w-full bg-gray-50 border-0 p-4 rounded-xl font-bold text-xl" 
+            value={formData.amount} 
+            onChange={e => setFormData({...formData, amount: e.target.value})} 
+            placeholder="Min 10 TK" 
+          />
+        </div>
+
+        <div>
+          <label className="block text-[10px] font-black uppercase text-gray-400 mb-2">Payment Method</label>
+          <div className="grid grid-cols-3 gap-2">
+            {['Bkash', 'Nagad', 'Rocket'].map(m => (
+              <button 
+                key={m} 
+                type="button" 
+                onClick={() => setFormData({...formData, method: m})}
+                className={`p-4 rounded-xl font-bold transition-all ${formData.method === m ? 'bg-[#006400] text-white' : 'bg-gray-50 text-gray-400'}`}
+              >
+                {m}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-[10px] font-black uppercase text-gray-400 mb-2">Transaction ID (Optional)</label>
+          <input 
+            className="w-full bg-gray-50 border-0 p-4 rounded-xl font-bold" 
+            value={formData.trxId} 
+            onChange={e => setFormData({...formData, trxId: e.target.value})} 
+            placeholder="e.g. AX76B2..." 
+          />
+        </div>
+
+        <div>
+          <label className="block text-[10px] font-black uppercase text-gray-400 mb-2">Payment Screenshot</label>
+          <label className="flex flex-col items-center justify-center w-full h-40 bg-gray-50 rounded-2xl border-2 border-dashed border-[#006400]/20 cursor-pointer hover:bg-gray-100 transition-all overflow-hidden relative">
+            {screenshot ? (
+              <img src={screenshot} className="w-full h-full object-cover" />
+            ) : (
+              <div className="text-center">
+                <Upload className="mx-auto text-gray-200 mb-2" size={32} />
+                <span className="text-[10px] font-black text-gray-400 uppercase mt-2 block">Upload Screenshot</span>
+              </div>
+            )}
+            <input type="file" className="hidden" onChange={handleFile} accept="image/*" />
+          </label>
+        </div>
+
+        <button disabled={loading} className="w-full bg-[#006400] text-white font-black py-5 rounded-2xl uppercase tracking-widest shadow-xl shadow-[#006400]/20 active:scale-95 transition-all">
+          {loading ? 'Submitting...' : 'Confirm Payment'}
+        </button>
+      </form>
+    </div>
+  );
+};
+
 export const SimOffers = ({ onBack, onSuccess }: { onBack: () => void, onSuccess: () => void }) => {
   const [offers, setOffers] = useState<SimOffer[]>([]);
   const [selectedOperator, setSelectedOperator] = useState<string | null>(null);

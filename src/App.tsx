@@ -48,10 +48,13 @@ import {
   FacebookForm, 
   WebsiteForm, 
   AppForm, 
-  SimOffers 
+  SimOffers,
+  TopUpForm
 } from "./components/ServiceForms";
 import { AdminPanel } from "./components/AdminPanel";
 import { ProfileEdit } from "./components/ProfileEdit";
+import { TallyNote } from "./components/TallyNote";
+import { SubmissionsHistory } from "./components/SubmissionsHistory";
 import { ADMIN_EMAILS, UserProfile, PlatformService } from "./types";
 
 export default function App() {
@@ -402,9 +405,14 @@ export default function App() {
                         </div>
                      </div>
                    </motion.button>
-                   <div className="flex-1 ml-6 space-y-3">
-                      <div className="h-10 bg-gray-100 rounded-lg w-full animate-pulse" />
-                      <div className="h-10 bg-gray-100 rounded-lg w-3/4 animate-pulse" />
+                   <div className="flex-1 ml-6 flex flex-col justify-center">
+                      <button 
+                        onClick={() => setActiveService('topup')}
+                        className="bg-[#006400] text-white py-3 px-6 rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg shadow-[#006400]/20 active:scale-95 transition-all flex items-center justify-center gap-2"
+                      >
+                        <PlusCircle size={16} /> Top Up Now
+                      </button>
+                      <p className="text-[10px] font-bold text-gray-400 mt-2 uppercase text-center leading-tight">Add balance manually<br/>via Bkash/Nagad</p>
                    </div>
                  </div>
               </section>
@@ -439,7 +447,7 @@ export default function App() {
                     })}
                     
                     {/* Other static icons */}
-                    <DashboardIcon icon={<Wallet className="text-[#006400]" />} label="Payments" onClick={() => setShowPaymentInfo(true)} />
+                    <DashboardIcon icon={<Wallet className="text-[#006400]" />} label="Top Up" onClick={() => setActiveService('topup')} />
                     <DashboardIcon icon={<Users className="text-red-500" />} label="My Team" />
                     <DashboardIcon icon={<Headset className="text-[#006400]" />} label="Agent" onClick={() => setActiveService('agent')} />
                  </div>
@@ -486,12 +494,21 @@ export default function App() {
               {activeService === 'web' && <WebsiteForm onBack={() => setActiveService(null)} onSuccess={handleSuccess} />}
               {activeService === 'app' && <AppForm onBack={() => setActiveService(null)} onSuccess={handleSuccess} />}
               {activeService === 'sim' && <SimOffers onBack={() => setActiveService(null)} onSuccess={handleSuccess} />}
+              {activeService === 'topup' && <TopUpForm onBack={() => setActiveService(null)} onSuccess={handleSuccess} />}
+              {activeService === 'history' && <SubmissionsHistory onBack={() => setActiveService('profile')} />}
+              {activeService === 'tally' && <TallyNote onBack={() => setActiveService(null)} />}
               {activeService === 'agent' && <AgentLinks onBack={() => setActiveService(null)} />}
               {activeService === 'profile' && profile && (
                 <ProfileEdit 
                   profile={profile} 
                   onClose={() => setActiveService(null)} 
-                  onUpdate={(updated) => setProfile(prev => prev ? { ...prev, ...updated } : prev)} 
+                  onUpdate={(updated) => {
+                    if ((updated as any).showHistory) {
+                      setActiveService('history');
+                    } else {
+                      setProfile(prev => prev ? { ...prev, ...updated } : prev);
+                    }
+                  }} 
                 />
               )}
             </motion.div>
@@ -502,8 +519,8 @@ export default function App() {
       {/* Bottom Navigation */}
       <nav className="fixed bottom-0 left-0 right-0 bg-[#006400] text-white flex justify-around items-center h-20 shadow-[0_-5px_20px_rgba(0,0,0,0.1)] z-50">
          <BottomNavItem icon={<Home size={24} />} label="Home" onClick={() => setActiveService(null)} isActive={!activeService} />
-         <BottomNavItem icon={<Zap size={24} />} label="Recharge" onClick={() => setActiveService('sim')} isActive={activeService === 'sim'} />
-         <BottomNavItem icon={<BookOpen size={24} />} label="TallyKhata" onClick={() => window.open('https://tallykhata.com', '_blank')} />
+         <BottomNavItem icon={<Zap size={24} />} label="Offers" onClick={() => setActiveService('sim')} isActive={activeService === 'sim'} />
+         <BottomNavItem icon={<BookOpen size={24} />} label="Tally" onClick={() => setActiveService('tally')} isActive={activeService === 'tally'} />
       </nav>
 
       {/* Success Notification */}
@@ -521,61 +538,6 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Payment Info Modal */}
-      <AnimatePresence>
-        {showPaymentInfo && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
-            onClick={() => setShowPaymentInfo(false)}
-          >
-            <motion.div 
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              className="bg-white rounded-[32px] w-full max-w-sm p-8 shadow-2xl overflow-hidden relative"
-              onClick={e => e.stopPropagation()}
-            >
-              <div className="absolute top-0 right-0 w-24 h-24 bg-[#006400]/5 -mr-8 -mt-8 rounded-full" />
-              <div className="relative text-center">
-                <div className="w-16 h-16 bg-[#006400] text-white rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
-                  <Wallet size={32} />
-                </div>
-                <h3 className="text-2xl font-black text-gray-900 mb-2">Add Balance</h3>
-                <p className="text-sm text-gray-500 font-bold mb-6">Payment Methods for Manual Top-up</p>
-                
-                <div className="space-y-3">
-                  <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
-                    <p className="text-[10px] font-black uppercase text-gray-400 mb-1">Payment Number</p>
-                    <p className="text-2xl font-black text-[#006400]">01876357998</p>
-                    <p className="text-[10px] font-bold text-gray-400 mt-1 uppercase">( Send Money )</p>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-2 text-left">
-                     {['Bkash', 'Nagad', 'Rocket', 'Upay', 'Dutch-Bangla'].map(m => (
-                       <div key={m} className="bg-gray-50 px-3 py-2 rounded-xl text-[10px] font-bold text-gray-600 flex items-center gap-2">
-                         <div className="w-2 h-2 bg-[#006400] rounded-full" />
-                         {m}
-                       </div>
-                     ))}
-                  </div>
-                </div>
-
-                <div className="mt-8">
-                  <button 
-                    onClick={() => setShowPaymentInfo(false)}
-                    className="w-full bg-[#006400] text-white font-black py-4 rounded-2xl shadow-xl shadow-[#006400]/20 active:scale-95 transition-all"
-                  >
-                    Got it
-                  </button>
-                  <p className="mt-4 text-[10px] font-bold text-gray-400 uppercase">After Payment, Send Screenshot to Agent</p>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }

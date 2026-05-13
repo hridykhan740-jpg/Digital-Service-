@@ -1,4 +1,4 @@
-export type ServiceType = 'facebook_verification' | 'website_dev' | 'app_dev' | 'sim_offer';
+export type ServiceType = 'facebook_verification' | 'website_dev' | 'app_dev' | 'sim_offer' | 'top_up';
 
 export interface PlatformService {
   id: string; // matches ServiceType or unique ID
