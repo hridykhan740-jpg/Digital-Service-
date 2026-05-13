@@ -16,6 +16,7 @@ export interface UserProfile {
   mobile: string;
   balance: number;
   role: 'user' | 'admin';
+  photoURL?: string;
   createdAt: any;
 }
 
@@ -39,6 +40,17 @@ export interface SimOffer {
   validity: string;
   description: string;
   active: boolean;
+}
+
+export interface Notification {
+  id?: string;
+  userId: string;
+  userEmail: string;
+  type: 'order' | 'balance' | 'tally' | 'system' | 'profile';
+  title: string;
+  message: string;
+  read: boolean;
+  createdAt: any;
 }
 
 export const ADMIN_EMAILS = ["mhossenali740@gmail.com", "hridykhan740@gmail.com"];

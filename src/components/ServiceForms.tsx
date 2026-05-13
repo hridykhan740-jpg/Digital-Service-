@@ -2,8 +2,24 @@ import React, { useState, useEffect } from "react";
 import { doc, getDoc, collection, addDoc, query, where, onSnapshot, serverTimestamp } from "firebase/firestore";
 import { db, auth, OperationType, handleFirestoreError } from "../lib/firebase";
 import { SimOffer, PlatformService } from "../types";
-import { Smartphone, Globe, Facebook, ArrowLeft, Upload, Zap, CheckCircle, AlertCircle } from "lucide-react";
+import { Smartphone, Globe, Facebook, ArrowLeft, Upload, Zap, CheckCircle, AlertCircle, Users } from "lucide-react";
 import { motion } from "motion/react";
+
+const operators = [
+  { name: 'GP', color: 'bg-[#1BB3E9]', icon: 'https://upload.wikimedia.org/wikipedia/en/thumb/c/c2/Grameenphone_Logo.svg/1024px-Grameenphone_Logo.svg.png' },
+  { name: 'Robi', color: 'bg-[#E30613]', icon: 'https://upload.wikimedia.org/wikipedia/en/thumb/f/f2/Robi_Axiata_Logo.svg/1024px-Robi_Axiata_Logo.svg.png' },
+  { name: 'Airtel', color: 'bg-[#FF0000]', icon: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Airtel_logo.svg/1024px-Airtel_logo.svg.png' },
+  { name: 'Banglalink', color: 'bg-[#F47920]', icon: 'https://upload.wikimedia.org/wikipedia/en/thumb/f/f6/Banglalink_Logo.svg/1024px-Banglalink_Logo.svg.png' },
+  { name: 'Family', color: 'bg-[#9333ea]', icon: <Users size={32} /> }
+];
+
+const paymentMethods = [
+  { name: 'Bkash', color: 'bg-[#D12053]', icon: 'https://logos-download.com/wp-content/uploads/2022/01/BKash_Logo.png' },
+  { name: 'Nagad', color: 'bg-[#F47920]', icon: 'https://download.logo.wine/logo/Nagad/Nagad-Logo.wine.png' },
+  { name: 'Rocket', color: 'bg-[#8C3494]', icon: 'https://www.rocket.com.bd/assets/images/rocket-logo.png' },
+  { name: 'Upay', color: 'bg-[#FFD400]', icon: 'https://www.upay.com.bd/assets/images/upay-logo.png' },
+  { name: 'Dutch', color: 'bg-[#005CAB]', icon: 'https://www.dutchbanglabank.com/images/footer-logo.png' }
+];
 
 const ServiceHeader = ({ id, defaultTitle, defaultColor, icon: Icon }: any) => {
   const [config, setConfig] = useState<PlatformService | null>(null);
@@ -60,6 +76,18 @@ export const FacebookForm = ({ onBack, onSuccess }: { onBack: () => void, onSucc
         status: 'pending',
         createdAt: serverTimestamp()
       });
+
+      // User notification for activity log
+      await addDoc(collection(db, "notifications"), {
+        userId: auth.currentUser?.uid,
+        userEmail: auth.currentUser?.email,
+        type: 'order',
+        title: 'New Order: Facebook Verification',
+        message: `User submitted a request for Facebook Verification.`,
+        read: false,
+        createdAt: serverTimestamp()
+      });
+
       onSuccess();
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, "submissions");
@@ -134,6 +162,18 @@ export const WebsiteForm = ({ onBack, onSuccess }: { onBack: () => void, onSucce
         status: 'pending',
         createdAt: serverTimestamp()
       });
+
+      // User notification for activity log
+      await addDoc(collection(db, "notifications"), {
+        userId: auth.currentUser?.uid,
+        userEmail: auth.currentUser?.email,
+        type: 'order',
+        title: 'New Order: Website Development',
+        message: `User requested a quote for ${formData.category} website.`,
+        read: false,
+        createdAt: serverTimestamp()
+      });
+
       onSuccess();
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, "submissions");
@@ -198,6 +238,18 @@ export const AppForm = ({ onBack, onSuccess }: { onBack: () => void, onSuccess: 
         status: 'pending',
         createdAt: serverTimestamp()
       });
+
+      // User notification for activity log
+      await addDoc(collection(db, "notifications"), {
+        userId: auth.currentUser?.uid,
+        userEmail: auth.currentUser?.email,
+        type: 'order',
+        title: 'New Order: App Development',
+        message: `User requested a project for app development.`,
+        read: false,
+        createdAt: serverTimestamp()
+      });
+
       onSuccess();
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, "submissions");
@@ -264,6 +316,18 @@ export const TopUpForm = ({ onBack, onSuccess }: { onBack: () => void, onSuccess
         status: 'pending',
         createdAt: serverTimestamp()
       });
+
+      // User notification for activity log
+      await addDoc(collection(db, "notifications"), {
+        userId: auth.currentUser?.uid,
+        userEmail: auth.currentUser?.email,
+        type: 'balance',
+        title: 'New Deposit Request',
+        message: `User requested to top up ${formData.amount} TK via ${formData.method}.`,
+        read: false,
+        createdAt: serverTimestamp()
+      });
+
       onSuccess();
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, "submissions");
@@ -302,14 +366,15 @@ export const TopUpForm = ({ onBack, onSuccess }: { onBack: () => void, onSuccess
         <div>
           <label className="block text-[10px] font-black uppercase text-gray-400 mb-2">Payment Method</label>
           <div className="grid grid-cols-3 gap-2">
-            {['Bkash', 'Nagad', 'Rocket'].map(m => (
+            {paymentMethods.slice(0, 3).map(m => (
               <button 
-                key={m} 
+                key={m.name} 
                 type="button" 
-                onClick={() => setFormData({...formData, method: m})}
-                className={`p-4 rounded-xl font-bold transition-all ${formData.method === m ? 'bg-[#006400] text-white' : 'bg-gray-50 text-gray-400'}`}
+                onClick={() => setFormData({...formData, method: m.name})}
+                className={`flex flex-col items-center gap-2 p-3 rounded-xl font-bold transition-all border-2 ${formData.method === m.name ? 'bg-[#006400]/5 border-[#006400] text-[#006400]' : 'bg-gray-50 border-transparent text-gray-400'}`}
               >
-                {m}
+                <img src={m.icon as string} alt={m.name} className="h-6 object-contain" />
+                <span className="text-[10px] uppercase">{m.name}</span>
               </button>
             ))}
           </div>
@@ -348,9 +413,56 @@ export const TopUpForm = ({ onBack, onSuccess }: { onBack: () => void, onSuccess
   );
 };
 
-export const SimOffers = ({ onBack, onSuccess }: { onBack: () => void, onSuccess: () => void }) => {
+export const DigitalServices = ({ onBack, onSuccess }: { onBack: () => void, onSuccess: () => void }) => {
+  const [selectedForm, setSelectedForm] = useState<'fb' | 'web' | 'app' | null>(null);
+
+  const services = [
+    { id: 'fb', label: 'Verification', icon: <Facebook size={32} />, color: 'bg-blue-50 text-blue-600', description: 'Blue badge request' },
+    { id: 'web', label: 'Web Dev', icon: <Globe size={32} />, color: 'bg-purple-50 text-purple-600', description: 'Business & Personal' },
+    { id: 'app', label: 'App Dev', icon: <Smartphone size={32} />, color: 'bg-emerald-50 text-emerald-600', description: 'iOS & Android' },
+  ];
+
+  if (selectedForm === 'fb') return <FacebookForm onBack={() => setSelectedForm(null)} onSuccess={onSuccess} />;
+  if (selectedForm === 'web') return <WebsiteForm onBack={() => setSelectedForm(null)} onSuccess={onSuccess} />;
+  if (selectedForm === 'app') return <AppForm onBack={() => setSelectedForm(null)} onSuccess={onSuccess} />;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between mb-2">
+        <button onClick={onBack} className="flex items-center gap-2 text-sm font-bold text-[#006400]">
+          <ArrowLeft size={16} /> Back
+        </button>
+        <h2 className="text-sm font-black uppercase text-gray-900 tracking-widest pl-4 pr-4 py-1 bg-gray-100 rounded-full">Digital Services</h2>
+        <div className="w-8" />
+      </div>
+
+      <div className="grid grid-cols-1 gap-4">
+        {services.map(s => (
+          <button
+            key={s.id}
+            onClick={() => setSelectedForm(s.id as any)}
+            className="flex items-center gap-4 p-6 bg-white border border-gray-100 rounded-3xl hover:border-[#006400]/30 transition-all active:scale-[0.98] group"
+          >
+            <div className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-all group-hover:scale-110 ${s.color}`}>
+              {s.icon}
+            </div>
+            <div className="text-left">
+              <h3 className="font-black text-lg text-gray-900 uppercase tracking-tight">{s.label}</h3>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{s.description}</p>
+            </div>
+            <div className="ml-auto w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-gray-300 group-hover:bg-[#006400] group-hover:text-white transition-all">
+               <ArrowLeft size={20} className="rotate-180" />
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+export const SimOffers = ({ onBack, onSuccess, initialOperator }: { onBack: () => void, onSuccess: () => void, initialOperator?: string }) => {
   const [offers, setOffers] = useState<SimOffer[]>([]);
-  const [selectedOperator, setSelectedOperator] = useState<string | null>(null);
+  const [selectedOperator, setSelectedOperator] = useState<string | null>(initialOperator || null);
   const [activeTab, setActiveTab] = useState<'Bundle' | 'Minute' | 'Internet'>('Bundle');
   const [purchasingOffer, setPurchasingOffer] = useState<SimOffer | null>(null);
   const [loading, setLoading] = useState(true);
@@ -395,6 +507,18 @@ export const SimOffers = ({ onBack, onSuccess }: { onBack: () => void, onSuccess
         status: 'pending',
         createdAt: serverTimestamp()
       });
+
+      // User notification for activity log
+      await addDoc(collection(db, "notifications"), {
+        userId: auth.currentUser?.uid,
+        userEmail: auth.currentUser?.email,
+        type: 'order',
+        title: `SIM Offer: ${purchasingOffer?.title}`,
+        message: `User purchased ${purchasingOffer?.operator} bundle for ${purchaseData.phone}.`,
+        read: false,
+        createdAt: serverTimestamp()
+      });
+
       setPurchasingOffer(null);
       onSuccess();
     } catch (err) { 
@@ -404,12 +528,10 @@ export const SimOffers = ({ onBack, onSuccess }: { onBack: () => void, onSuccess
     }
   };
 
-  const operators = [
-    { name: 'GP', color: 'bg-[#1BB3E9]', icon: (size: number) => <Globe size={size} /> },
-    { name: 'Robi', color: 'bg-[#E30613]', icon: (size: number) => <Zap size={size} /> },
-    { name: 'Airtel', color: 'bg-[#FF0000]', icon: (size: number) => <Smartphone size={size} /> },
-    { name: 'Banglalink', color: 'bg-[#F47920]', icon: (size: number) => <CheckCircle size={size} /> },
-    { name: 'Robi/Airtel Family', color: 'bg-[#9333ea]', icon: (size: number) => <Globe size={size} /> }
+  const digitalServices = [
+    { id: 'fb', name: 'Verification', icon: <Facebook size={24} /> },
+    { id: 'web', name: 'Web Dev', icon: <Globe size={24} /> },
+    { id: 'app', name: 'App Dev', icon: <Smartphone size={24} /> },
   ];
 
   const tabs: { id: typeof activeTab, label: string }[] = [
@@ -422,37 +544,44 @@ export const SimOffers = ({ onBack, onSuccess }: { onBack: () => void, onSuccess
     ? offers.filter(o => o.operator === selectedOperator && o.type === activeTab)
     : [];
 
+  if (selectedOperator === 'fb') return <FacebookForm onBack={() => setSelectedOperator(initialOperator || null)} onSuccess={onSuccess} />;
+  if (selectedOperator === 'web') return <WebsiteForm onBack={() => setSelectedOperator(initialOperator || null)} onSuccess={onSuccess} />;
+  if (selectedOperator === 'app') return <AppForm onBack={() => setSelectedOperator(initialOperator || null)} onSuccess={onSuccess} />;
+
   return (
     <div className="space-y-6">
       <button onClick={onBack} className="flex items-center gap-2 text-sm font-bold text-[#006400]">
         <ArrowLeft size={16} /> Back
       </button>
 
-      {/* Operator Selection */}
-      <div className="grid grid-cols-4 sm:grid-cols-5 gap-4">
-        {operators.map(op => (
+      {/* Digital Services Navigation (Replaced Operators) */}
+      <div className="grid grid-cols-3 gap-3">
+        {digitalServices.map(service => (
           <button 
-            key={op.name} 
-            onClick={() => {
-              setSelectedOperator(op.name);
-              setActiveTab('Bundle');
-            }} 
+            key={service.id} 
+            onClick={() => setSelectedOperator(service.id)} 
             className={`flex flex-col items-center gap-2 group transition-all`}
           >
-            <div className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-all ${selectedOperator === op.name ? `${op.color} shadow-lg scale-110` : 'bg-gray-50'}`}>
-              <div className={`${selectedOperator === op.name ? 'text-white' : 'text-gray-300'}`}>
-                {op.icon(32)}
-              </div>
+            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all border-2 ${selectedOperator === service.id ? `bg-[#006400] border-[#006400] shadow-lg text-white` : 'bg-gray-50 border-transparent text-gray-400 hover:bg-gray-100'}`}>
+              {service.icon}
             </div>
-            <span className={`text-[10px] font-black uppercase text-center leading-tight ${selectedOperator === op.name ? 'text-gray-900' : 'text-gray-400 group-hover:text-gray-600'}`}>
-              {op.name}
+            <span className={`text-[9px] font-black uppercase text-center leading-tight ${selectedOperator === service.id ? 'text-[#006400]' : 'text-gray-400'}`}>
+              {service.name}
             </span>
           </button>
         ))}
       </div>
 
-      {selectedOperator ? (
-        <div className="space-y-4 pt-4 border-t border-gray-100">
+      <div className="pt-4 border-t border-gray-100">
+        {selectedOperator && !['fb', 'web', 'app'].includes(selectedOperator) ? (
+          <div className="space-y-4">
+             {/* Header for Selected Operator */}
+             <div className="flex items-center gap-3 bg-gray-50 p-4 rounded-2xl border-l-4 border-[#006400]">
+                <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center p-1 shadow-sm">
+                   <img src={operators.find(o => o.name === selectedOperator)?.icon as string || ''} alt="" className="w-full h-full object-contain" />
+                </div>
+                <h3 className="font-black text-gray-900 uppercase tracking-widest">{selectedOperator} Offers</h3>
+             </div>
           {/* Tabs */}
           <div className="flex gap-2">
             {tabs.map(tab => (
@@ -508,6 +637,7 @@ export const SimOffers = ({ onBack, onSuccess }: { onBack: () => void, onSuccess
           <p className="text-amber-800 font-black uppercase text-xs tracking-widest">Select an operator to see offers</p>
         </div>
       )}
+      </div>
 
       {/* Purchase Modal */}
       {purchasingOffer && (
@@ -556,15 +686,16 @@ export const SimOffers = ({ onBack, onSuccess }: { onBack: () => void, onSuccess
 
                 <div>
                   <label className="block text-[10px] font-black uppercase text-gray-400 mb-2 ml-1">Select Method</label>
-                  <div className="grid grid-cols-2 gap-3">
-                    {['Bkash', 'Nagad', 'Rocket', 'Upay', 'Dutch'].map(m => (
+                  <div className="grid grid-cols-3 gap-2">
+                    {paymentMethods.map(m => (
                       <button 
-                        key={m} 
+                        key={m.name} 
                         type="button" 
-                        onClick={() => setPurchaseData({...purchaseData, method: m})}
-                        className={`p-4 rounded-xl font-black transition-all ${purchaseData.method === m ? 'bg-[#006400] text-white shadow-lg' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'}`}
+                        onClick={() => setPurchaseData({...purchaseData, method: m.name})}
+                        className={`flex flex-col items-center gap-1.5 p-3 rounded-xl font-bold transition-all border-2 ${purchaseData.method === m.name ? 'bg-[#006400]/5 border-[#006400] text-[#006400] shadow-sm' : 'bg-gray-50 border-transparent text-gray-400'}`}
                       >
-                        {m === 'Bkash' ? 'bKash' : m === 'Dutch' ? 'DBBL' : m}
+                        <img src={m.icon as string} alt={m.name} className="h-6 object-contain" />
+                        <span className="text-[9px] uppercase">{m.name === 'Dutch' ? 'DBBL' : m.name}</span>
                       </button>
                     ))}
                   </div>

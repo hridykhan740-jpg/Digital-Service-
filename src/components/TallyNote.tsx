@@ -62,6 +62,18 @@ export const TallyNote = ({ onBack }: { onBack: () => void }) => {
         content: newNote.content,
         createdAt: serverTimestamp()
       });
+
+      // Log activity
+      await addDoc(collection(db, "notifications"), {
+        userId: auth.currentUser?.uid,
+        userEmail: auth.currentUser?.email,
+        type: 'tally',
+        title: 'New Tally Note',
+        message: `User created a new tally note: ${newNote.title}`,
+        read: false,
+        createdAt: serverTimestamp()
+      });
+
       setNewNote({ title: "", content: "" });
       setIsAdding(false);
     } catch (err) {

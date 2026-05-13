@@ -8,12 +8,16 @@ import {
   onAuthStateChanged,
   setPersistence,
   browserLocalPersistence,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
   User
 } from "firebase/auth";
 import { 
   doc, 
   getDoc, 
-  setDoc, 
+  setDoc,
+  updateDoc, 
   collection,
   onSnapshot,
   serverTimestamp 
@@ -49,13 +53,18 @@ import {
   WebsiteForm, 
   AppForm, 
   SimOffers,
-  TopUpForm
+  TopUpForm,
+  DigitalServices
 } from "./components/ServiceForms";
 import { AdminPanel } from "./components/AdminPanel";
 import { ProfileEdit } from "./components/ProfileEdit";
 import { TallyNote } from "./components/TallyNote";
 import { SubmissionsHistory } from "./components/SubmissionsHistory";
+import { NotificationView } from "./components/NotificationView";
+import { ChangePasswordView } from "./components/ChangePasswordView";
 import { ADMIN_EMAILS, UserProfile, PlatformService } from "./types";
+
+import { Sidebar } from "./components/Sidebar";
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -66,12 +75,98 @@ export default function App() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [isAdminView, setIsAdminView] = useState(false);
   const [showBalance, setShowBalance] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const [authLoading, setAuthLoading] = useState(false);
 
   const [showPaymentInfo, setShowPaymentInfo] = useState(false);
+  const [manualAuth, setManualAuth] = useState({ email: '', password: '' });
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  const handleManualLogin = async () => {
+    if (!manualAuth.email || !manualAuth.password) {
+      setAuthError("Email and password are required");
+      return;
+    }
+    setAuthLoading(true);
+    setAuthError(null);
+    try {
+      await signInWithEmailAndPassword(auth, manualAuth.email, manualAuth.password);
+    } catch (err: any) {
+      setAuthError(err.message);
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleManualRegister = async () => {
+    if (!manualAuth.email || !manualAuth.password) {
+      setAuthError("Email and password are required");
+      return;
+    }
+    if (manualAuth.password.length < 6) {
+      setAuthError("Password must be at least 6 characters");
+      return;
+    }
+    setAuthLoading(true);
+    setAuthError(null);
+    try {
+      const cred = await createUserWithEmailAndPassword(auth, manualAuth.email, manualAuth.password);
+      
+      // Log new registration
+      await addDoc(collection(db, "notifications"), {
+        userId: cred.user.uid,
+        userEmail: cred.user.email,
+        type: 'profile',
+        title: 'New User Registered',
+        message: `A new user signed up with email ${cred.user.email}.`,
+        read: false,
+        createdAt: serverTimestamp()
+      });
+    } catch (err: any) {
+      setAuthError(err.message);
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!manualAuth.email) {
+      setAuthError("Please enter your email address to reset password");
+      return;
+    }
+    try {
+      await sendPasswordResetEmail(auth, manualAuth.email);
+      alert("Password reset email sent! Please check your inbox.");
+      
+      // Log the request
+      await addDoc(collection(db, "notifications"), {
+        userId: "SYSTEM",
+        userEmail: manualAuth.email,
+        type: 'profile',
+        title: 'Password Reset Requested',
+        message: `User ${manualAuth.email} requested a password reset email.`,
+        read: false,
+        createdAt: serverTimestamp()
+      });
+    } catch (err: any) {
+      setAuthError(err.message);
+    }
+  };
+
+  const [promoIndex, setPromoIndex] = useState(0);
 
   useEffect(() => {
+    const timer = setInterval(() => {
+      setPromoIndex(prev => (prev + 1) % 3);
+    }, 4000);
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    // Set global persistence once
+    setPersistence(auth, browserLocalPersistence).catch(err => console.error("Persistence error:", err));
+
     let unsubServices: (() => void) | null = null;
     let unsubProfile: (() => void) | null = null;
 
@@ -105,7 +200,13 @@ export default function App() {
             await setDoc(doc(db, "users", u.uid), newProfile);
             setProfile(newProfile);
           } else {
-            setProfile(profileDoc.data() as UserProfile);
+            const currentProfile = profileDoc.data() as UserProfile;
+            // Sync role if email is in ADMIN_EMAILS but role is not admin
+            if (u.email && ADMIN_EMAILS.includes(u.email) && currentProfile.role !== 'admin') {
+              await updateDoc(doc(db, "users", u.uid), { role: 'admin' });
+              currentProfile.role = 'admin';
+            }
+            setProfile(currentProfile);
           }
           
           unsubProfile = onSnapshot(doc(db, "users", u.uid), (doc) => {
@@ -116,8 +217,15 @@ export default function App() {
         } else {
           setProfile(null);
         }
-      } catch (err) {
-        console.error("Auth state change error:", err);
+      } catch (err: any) {
+        console.error("Auth state change error detail:", err);
+        // If it's a JSON string from handleFirestoreError, it will be easier to read
+        try {
+          const detail = JSON.parse(err.message);
+          console.error("Parsed Auth Error:", detail);
+        } catch {
+          // not a json string
+        }
       } finally {
         setLoading(false);
       }
@@ -134,7 +242,6 @@ export default function App() {
     if (authLoading) return;
     setAuthLoading(true);
     try {
-      await setPersistence(auth, browserLocalPersistence);
       const provider = new GoogleAuthProvider();
       // Ensure popup is allowed
       await signInWithPopup(auth, provider);
@@ -144,6 +251,8 @@ export default function App() {
         alert("আপনার ব্রাউজার পপ-আপ ব্লক করেছে। অনুগ্রহ করে ব্রাউজার সেটিং থেকে পপ-আপ এলাউ করুন এবং আবার চেষ্টা করুন। টিপস: আপনি যদি মেসেঞ্জার বা ফেসবুকের ভেতর থেকে অ্যাপটি চালান, তবে এটি কাজ করবে না। দয়া করে Chrome ব্রাউজার ব্যবহার করুন।");
       } else if (err.code === 'auth/unauthorized-domain') {
         alert("এই ডোমেইনটি আপনার ফায়ারবেস কনসোলে অনুমোদিত নয়।\n\nদয়া করে Firebase Console > Authentication > Settings > Authorized Domains-এ আপনার বর্তমান ডোমেইনটি যোগ করুন।");
+      } else if (err.code === 'auth/invalid-credential') {
+        alert("গুগল লগইন করতে সমস্যা হচ্ছে (Invalid Credential)। এটি সাধারণত ফায়ারবেস কনসোলে গুগল লগইন সঠিক ভাবে সেটআপ না থাকলে হয়। দয়া করে ফায়ারবেস কনসোলে Google Provider চেক করুন।");
       } else if (err.code === 'auth/cancelled-popup-request') {
         // Just ignore if user closed it manually or a previous one was pending
       } else {
@@ -158,7 +267,6 @@ export default function App() {
     if (authLoading) return;
     setAuthLoading(true);
     try {
-      await setPersistence(auth, browserLocalPersistence);
       const provider = new FacebookAuthProvider();
       // Ensure popup is allowed
       await signInWithPopup(auth, provider);
@@ -168,6 +276,8 @@ export default function App() {
         alert("আপনার ব্রাউজার পপ-আপ ব্লক করেছে। অনুগ্রহ করে ব্রাউজার সেটিং থেকে পপ-আপ এলাউ করুন এবং আবার চেষ্টা করুন। টিপস: আপনি যদি মেসেঞ্জার বা ফেসবুকের ভেতর থেকে অ্যাপটি চালান, তবে এটি কাজ করবে না। দয়া করে Chrome ব্রাউজার ব্যবহার করুন।");
       } else if (err.code === 'auth/unauthorized-domain') {
         alert("এই ডোমেইনটি আপনার ফায়ারবেস কনসোলে অনুমোদিত নয়।\n\nদয়া করে Firebase Console > Authentication > Settings > Authorized Domains-এ আপনার বর্তমান ডোমেইনটি যোগ করুন।");
+      } else if (err.code === 'auth/invalid-credential') {
+        alert("ফেসবুক লগইন করতে সমস্যা হচ্ছে (Invalid Credential)। এটি সাধারণত ফায়ারবেস কনসোলে ফেসবুক অ্যাপ আইডি সঠিক ভাবে সেটআপ না থাকলে হয়।");
       } else if (err.code === 'auth/account-exists-with-different-credential') {
         alert("এই ইমেইল দিয়ে ইতমধ্যেই একটি অ্যাকাউন্ট আছে। অনুগ্রহ করে গুগল দিয়ে লগইন করুন।");
       } else {
@@ -235,11 +345,13 @@ export default function App() {
           <div className="space-y-4">
             <div className="relative">
                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-green-700">
-                  <MessageSquare size={20} />
+                  <Mail size={20} />
                </div>
                <input 
-                type="text" 
-                placeholder="Mobile number" 
+                type="email" 
+                placeholder="Email Address" 
+                value={manualAuth.email}
+                onChange={e => setManualAuth({...manualAuth, email: e.target.value})}
                 className="w-full bg-[#F0F2F5] border-0 py-4 pl-12 pr-4 rounded-xl font-bold placeholder:text-gray-400 focus:ring-2 ring-green-700/20"
                />
             </div>
@@ -250,36 +362,70 @@ export default function App() {
                <input 
                 type="password" 
                 placeholder="Password" 
+                value={manualAuth.password}
+                onChange={e => setManualAuth({...manualAuth, password: e.target.value})}
                 className="w-full bg-[#F0F2F5] border-0 py-4 pl-12 pr-4 rounded-xl font-bold placeholder:text-gray-400 focus:ring-2 ring-green-700/20"
                />
             </div>
+            <div className="flex justify-end px-2">
+               <button 
+                onClick={handleForgotPassword}
+                className="text-[10px] font-black text-[#006400] uppercase tracking-widest hover:underline"
+               >
+                 Forgot Password?
+               </button>
+            </div>
           </div>
+
+          {authError && (
+            <p className="text-red-500 text-[10px] font-bold text-center bg-red-50 p-2 rounded-lg italic">
+              {authError}
+            </p>
+          )}
 
           {/* Action Buttons */}
           <div className="space-y-3">
-             <button 
-              onClick={login}
-              disabled={authLoading}
-              className="w-full py-4 border-2 border-green-700 text-green-700 font-black rounded-full uppercase tracking-widest hover:bg-green-50 transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
-             >
-               <Mail size={18} /> {authLoading ? 'Wait...' : 'Login with Google'}
-             </button>
+             <div className="grid grid-cols-2 gap-2">
+                <button 
+                  onClick={handleManualLogin}
+                  disabled={authLoading}
+                  className="py-4 bg-[#006400] text-white font-black rounded-xl uppercase tracking-widest shadow-lg shadow-green-900/10 hover:bg-green-800 transition-all active:scale-95 disabled:opacity-50"
+                >
+                  {authLoading ? 'Wait...' : 'Login'}
+                </button>
+                <button 
+                  onClick={handleManualRegister}
+                  disabled={authLoading}
+                  className="py-4 border-2 border-[#006400] text-[#006400] font-black rounded-xl uppercase tracking-widest hover:bg-green-50 transition-all active:scale-95 disabled:opacity-50"
+                >
+                  {authLoading ? 'Wait...' : 'Register'}
+                </button>
+             </div>
 
-             <button 
-              onClick={loginWithFacebook}
-              disabled={authLoading}
-              className="w-full py-4 border-2 border-blue-700 text-blue-700 font-black rounded-full uppercase tracking-widest hover:bg-blue-50 transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
-             >
-               <Facebook size={18} /> {authLoading ? 'Wait...' : 'Login with Facebook'}
-             </button>
-             
-             <button 
-              onClick={login}
-              disabled={authLoading}
-              className="w-full py-4 bg-[#006400] text-white font-black rounded-full uppercase tracking-widest shadow-xl shadow-green-900/20 hover:bg-green-800 transition-all active:scale-95 disabled:opacity-50"
-             >
-               {authLoading ? 'Processing...' : 'Create Account'}
-             </button>
+             <div className="relative flex items-center justify-center py-2">
+                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-100"></div></div>
+                <div className="relative bg-white px-4 text-[8px] font-bold text-gray-300 uppercase tracking-widest">Or Continue With</div>
+             </div>
+
+             <div className="flex flex-col gap-3">
+               <button 
+                onClick={login}
+                disabled={authLoading}
+                className="w-full py-3.5 bg-white border border-gray-200 text-gray-700 font-black rounded-xl text-[11px] uppercase tracking-widest hover:shadow-md transition-all flex items-center justify-center gap-3 active:scale-[0.98] disabled:opacity-50 shadow-sm"
+               >
+                 <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-5 h-5" alt="Google" />
+                 Continue with Google
+               </button>
+
+               <button 
+                onClick={loginWithFacebook}
+                disabled={authLoading}
+                className="w-full py-3.5 bg-[#1877F2] text-white font-black rounded-xl text-[11px] uppercase tracking-widest hover:bg-[#166fe5] shadow-lg shadow-blue-500/10 transition-all flex items-center justify-center gap-3 active:scale-[0.98] disabled:opacity-50"
+               >
+                 <Facebook size={20} fill="white" />
+                 Continue with Facebook
+               </button>
+             </div>
           </div>
 
           <p className="text-[10px] text-center text-gray-500 font-bold flex flex-wrap justify-center gap-1">
@@ -338,21 +484,40 @@ export default function App() {
     <div className="min-h-screen bg-[#F0F2F5] text-black font-sans selection:bg-[#006400] selection:text-white pb-32">
       {/* Header */}
       <header className="bg-[#006400] p-4 text-white flex justify-between items-center sticky top-0 z-40 shadow-md">
-        <div className="flex items-center gap-4">
-          <Menu size={24} />
-          <h1 className="font-bold text-xl uppercase tracking-wider">Àbdüllāh Aĺ Hỗŝŝâîň</h1>
-        </div>
         <div className="flex items-center gap-2">
-           {profile?.role === 'admin' && (
-             <button onClick={() => setIsAdminView(true)} className="p-2 hover:bg-[#004d00] rounded-full active:scale-90 transition-all">
-               <LayoutDashboard size={20} />
-             </button>
-           )}
+          <button onClick={() => setIsSidebarOpen(true)} className="p-2 hover:bg-[#004d00] rounded-full active:scale-90 transition-all">
+            <Menu size={24} />
+          </button>
+          {profile?.role === 'admin' && (
+            <button 
+              onClick={() => setIsAdminView(true)} 
+              className="flex items-center gap-2 bg-white text-[#006400] px-3 py-1.5 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg active:scale-95 transition-all"
+            >
+              <ShieldCheck size={14} /> Admin panel
+            </button>
+          )}
+        </div>
+        <h1 className="font-bold text-lg uppercase tracking-wider truncate ml-2">Àbdüllāh Aĺ Hỗŝŝâîň</h1>
+        <div className="flex items-center gap-2">
            <button onClick={logout} className="p-2 hover:bg-[#004d00] rounded-full active:scale-90 transition-all">
               <LogOut size={20} />
            </button>
         </div>
       </header>
+
+      <Sidebar 
+        isOpen={isSidebarOpen} 
+        onClose={() => setIsSidebarOpen(false)} 
+        profile={profile}
+        onNavigate={(view) => {
+          if (view === 'admin') {
+            setIsAdminView(true);
+          } else {
+            setActiveService(view);
+          }
+        }}
+        onLogout={logout}
+      />
 
       <main className="max-w-xl mx-auto p-4 md:p-6 space-y-6">
         <AnimatePresence mode="wait">
@@ -423,25 +588,32 @@ export default function App() {
                  <div className="grid grid-cols-4 gap-y-8 gap-x-4">
                     {/* Hardcoded defaults if Firestore is empty or for mapping */}
                     {[
-                      { id: 'fb', icon: <PlusCircle className="text-blue-600" />, label: 'Verification', dbId: 'facebook_verification' },
-                      { id: 'web', icon: <Globe className="text-purple-600" />, label: 'Web Dev', dbId: 'website_dev' },
-                      { id: 'app', icon: <Smartphone className="text-emerald-600" />, label: 'App Dev', dbId: 'app_dev' },
-                      { id: 'sim', icon: <Zap className="text-amber-500" />, label: 'All Offers', dbId: 'sim_offer' },
+                      { id: 'sim_gp', icon: 'https://upload.wikimedia.org/wikipedia/en/thumb/c/c2/Grameenphone_Logo.svg/1024px-Grameenphone_Logo.svg.png', label: 'GP' },
+                      { id: 'sim_robi', icon: 'https://upload.wikimedia.org/wikipedia/en/thumb/f/f2/Robi_Axiata_Logo.svg/1024px-Robi_Axiata_Logo.svg.png', label: 'Robi' },
+                      { id: 'sim_airtel', icon: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Airtel_logo.svg/1024px-Airtel_logo.svg.png', label: 'Airtel' },
+                      { id: 'sim_bl', icon: 'https://upload.wikimedia.org/wikipedia/en/thumb/f/f6/Banglalink_Logo.svg/1024px-Banglalink_Logo.svg.png', label: 'Banglalink' },
+                      { id: 'sim_family', icon: <Users size={28} />, label: 'Family' },
+                      { id: 'digital', icon: <Zap className="text-amber-500" />, label: 'Digital' },
                     ].map(item => {
-                      const serviceConfig = services.find(s => s.id === item.dbId);
-                      // If service configuration exists in Firestore, use its active status. 
-                      // If not, show it as active by default for standard ones.
-                      if (serviceConfig) {
-                        if (!serviceConfig.active) return null;
-                        if (serviceConfig.adminOnly && profile?.role !== 'admin') return null;
-                      }
+                      const serviceId = item.id.startsWith('sim_') ? 'sim_offer' : (item.id === 'digital' ? 'facebook_verification' : item.id);
+                      const serviceConfig = services.find(s => s.id === serviceId);
                       
                       return (
                         <DashboardIcon 
                           key={item.id} 
-                          icon={item.icon} 
-                          label={serviceConfig?.title || item.label} 
-                          onClick={() => setActiveService(item.id)} 
+                          icon={typeof item.icon === 'string' ? <img src={item.icon} alt={item.label} className="w-8 h-8 object-contain" /> : item.icon} 
+                          label={item.label} 
+                          onClick={() => {
+                            if (item.id.startsWith('sim_')) {
+                              const op = item.id.split('_')[1];
+                              const opName = op === 'bl' ? 'Banglalink' : op.toUpperCase();
+                              setActiveService(`sim:${opName}`);
+                            } else if (item.id === 'digital') {
+                               setActiveService('digital');
+                            } else {
+                               setActiveService(item.id);
+                            }
+                          }} 
                         />
                       );
                     })}
@@ -467,17 +639,101 @@ export default function App() {
                  </div>
               </section>
 
-              {/* Prayer Schedule Placeholder (Styled like screenshot) */}
-              <section className="relative overflow-hidden bg-white rounded-3xl shadow-sm">
-                 <div className="p-6 border-b border-[#006400]/10 flex justify-between items-center">
-                    <h2 className="text-sm font-black uppercase text-[#006400]">Daily Updates</h2>
-                    <span className="text-xs font-bold text-gray-400">12-05-2026</span>
+              {/* Daily Updates & Promotional Animation */}
+              <section className="relative overflow-hidden bg-white rounded-3xl shadow-sm border border-gray-100">
+                 <div className="p-5 border-b border-[#006400]/10 flex justify-between items-center bg-white sticky top-0 z-10">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                      <h2 className="text-sm font-black uppercase text-gray-900 tracking-tighter">Live Updates</h2>
+                    </div>
+                    <span className="text-[10px] font-black bg-[#006400] text-white px-3 py-1 rounded-full uppercase tracking-widest shadow-sm">
+                      {new Date().toLocaleDateString('en-GB')}
+                    </span>
                  </div>
-                 <div className="p-8 text-center bg-gradient-to-b from-white to-gray-50">
-                    <div className="text-4xl font-black text-gray-900 tracking-tighter mb-2">04:47 <span className="text-sm align-top">41</span></div>
-                    <p className="text-sm font-bold text-[#006400] uppercase tracking-widest">Active System Time</p>
-                    {/* Visual Curve like screenshot */}
-                    <div className="mt-8 border-t-2 border-[#006400] w-full h-8 rounded-[100%] border-b-0 opacity-20" />
+                 
+                 <div className="relative h-64 bg-[#001a00] flex items-center justify-center overflow-hidden">
+                    {/* Animated Background Elements */}
+                    <motion.div 
+                      animate={{ 
+                        rotate: [0, 360],
+                        scale: [1, 1.2, 1]
+                      }}
+                      transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+                      className="absolute w-[150%] h-[150%] border-[40px] border-[#006400]/10 rounded-full"
+                    />
+                    
+                    <AnimatePresence mode="wait">
+                      <motion.div
+                        key={promoIndex}
+                        initial={{ opacity: 0, y: 20, scale: 0.9 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -20, scale: 1.1 }}
+                        className="relative z-10 text-center px-8"
+                      >
+                         {promoIndex === 0 && (
+                           <>
+                             <div className="w-20 h-20 bg-white/10 backdrop-blur-md rounded-3xl flex items-center justify-center mx-auto mb-4 border border-white/20 shadow-2xl">
+                               <Zap className="text-amber-400" size={40} />
+                             </div>
+                             <h3 className="text-white font-black text-xl uppercase tracking-tight mb-1">Super Sim Offers</h3>
+                             <p className="text-[#00ff00] text-[10px] font-black uppercase tracking-[0.2em]">Up to 60% Discount Today</p>
+                           </>
+                         )}
+                         {promoIndex === 1 && (
+                           <>
+                             <div className="w-20 h-20 bg-white/10 backdrop-blur-md rounded-3xl flex items-center justify-center mx-auto mb-4 border border-white/20 shadow-2xl">
+                               <Facebook className="text-blue-400" size={40} />
+                             </div>
+                             <h3 className="text-white font-black text-xl uppercase tracking-tight mb-1">FB Verification</h3>
+                             <p className="text-blue-200 text-[10px] font-black uppercase tracking-[0.2em]">Official Blue Badge Service</p>
+                           </>
+                         )}
+                         {promoIndex === 2 && (
+                           <>
+                             <div className="w-20 h-20 bg-white/10 backdrop-blur-md rounded-3xl flex items-center justify-center mx-auto mb-4 border border-white/20 shadow-2xl">
+                               <Globe className="text-emerald-400" size={40} />
+                             </div>
+                             <h3 className="text-white font-black text-xl uppercase tracking-tight mb-1">Fast Delivery</h3>
+                             <p className="text-emerald-200 text-[10px] font-black uppercase tracking-[0.2em]">Automated Process 24/7</p>
+                           </>
+                         )}
+                      </motion.div>
+                    </AnimatePresence>
+
+                    {/* Progress Bar */}
+                    <div className="absolute bottom-4 left-4 right-4 h-1 bg-white/10 rounded-full overflow-hidden">
+                       <motion.div 
+                         initial={{ width: "0%" }}
+                         animate={{ width: "100%" }}
+                         transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
+                         className="h-full bg-[#00ff00]"
+                       />
+                    </div>
+                 </div>
+
+                 <div className="p-6 bg-white space-y-4">
+                    <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                       <div className="w-10 h-10 bg-[#006400] rounded-xl flex items-center justify-center text-white shrink-0">
+                          <CheckCircle size={20} />
+                       </div>
+                       <div>
+                          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Active System Time</p>
+                          <div className="text-lg font-black text-gray-900">
+                             {new Date().toLocaleTimeString('en-US', { hour12: false })}
+                          </div>
+                       </div>
+                       <div className="ml-auto flex items-center gap-1 bg-[#00ff00]/10 px-2 py-1 rounded text-[#006400] text-[8px] font-black uppercase">
+                          <div className="w-1.5 h-1.5 bg-[#006400] rounded-full animate-ping" />
+                          Online
+                       </div>
+                    </div>
+                    
+                    <button 
+                      onClick={() => setActiveService('notification')}
+                      className="w-full flex items-center justify-center gap-2 py-3 bg-[#006400] text-white rounded-xl font-black uppercase text-xs tracking-widest shadow-lg shadow-green-900/10 active:scale-95 transition-all"
+                    >
+                       View All News & Updates
+                    </button>
                  </div>
               </section>
 
@@ -490,12 +746,19 @@ export default function App() {
               exit={{ opacity: 0, x: -20 }}
               className="bg-white p-6 rounded-3xl shadow-lg border-t-8 border-[#006400]"
             >
-              {activeService === 'fb' && <FacebookForm onBack={() => setActiveService(null)} onSuccess={handleSuccess} />}
-              {activeService === 'web' && <WebsiteForm onBack={() => setActiveService(null)} onSuccess={handleSuccess} />}
-              {activeService === 'app' && <AppForm onBack={() => setActiveService(null)} onSuccess={handleSuccess} />}
+              {activeService?.startsWith('sim:') && (
+                <SimOffers 
+                  initialOperator={activeService.split(':')[1]} 
+                  onBack={() => setActiveService(null)} 
+                  onSuccess={handleSuccess} 
+                />
+              )}
               {activeService === 'sim' && <SimOffers onBack={() => setActiveService(null)} onSuccess={handleSuccess} />}
+              {activeService === 'digital' && <DigitalServices onBack={() => setActiveService(null)} onSuccess={handleSuccess} />}
               {activeService === 'topup' && <TopUpForm onBack={() => setActiveService(null)} onSuccess={handleSuccess} />}
               {activeService === 'history' && <SubmissionsHistory onBack={() => setActiveService('profile')} />}
+              {activeService === 'notification' && <NotificationView onBack={() => setActiveService(null)} />}
+              {activeService === 'change_password' && <ChangePasswordView onBack={() => setActiveService(null)} />}
               {activeService === 'tally' && <TallyNote onBack={() => setActiveService(null)} />}
               {activeService === 'agent' && <AgentLinks onBack={() => setActiveService(null)} />}
               {activeService === 'profile' && profile && (
@@ -542,14 +805,18 @@ export default function App() {
   );
 }
 
-const DashboardIcon = ({ icon, label, onClick }: any) => (
-  <button onClick={onClick} className="flex flex-col items-center gap-2 group cursor-pointer active:scale-90 transition-all">
-    <div className="w-14 h-14 bg-gray-50 border border-gray-100 rounded-2xl flex items-center justify-center transition-all group-hover:bg-white group-hover:shadow-md group-hover:scale-105">
-      {React.cloneElement(icon as React.ReactElement, { size: 28 })}
-    </div>
-    <span className="text-[10px] font-black uppercase text-gray-500 tracking-tighter text-center">{label}</span>
-  </button>
-);
+const DashboardIcon = ({ icon, label, onClick }: any) => {
+  const isLucideIcon = React.isValidElement(icon) && typeof (icon.type as any) !== 'string';
+  
+  return (
+    <button onClick={onClick} className="flex flex-col items-center gap-2 group cursor-pointer active:scale-90 transition-all">
+      <div className="w-14 h-14 bg-gray-50 border border-gray-100 rounded-2xl flex items-center justify-center p-2 transition-all group-hover:bg-white group-hover:shadow-md group-hover:scale-105 overflow-hidden">
+        {isLucideIcon ? React.cloneElement(icon as React.ReactElement, { size: 28 }) : icon}
+      </div>
+      <span className="text-[10px] font-black uppercase text-gray-500 tracking-tighter text-center leading-tight">{label}</span>
+    </button>
+  );
+};
 
 const SocialIcon = ({ icon, label, href }: any) => (
   <a href={href} target="_blank" rel="noreferrer" className="flex flex-col items-center gap-2 group active:scale-90 transition-all">

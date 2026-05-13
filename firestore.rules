@@ -1,11 +1,6 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // 0. Global Safety Net
-    match /{document=**} {
-      allow read, write: if false;
-    }
-
     // --- Primitives ---
     function isSignedIn() {
       return request.auth != null;
@@ -22,9 +17,7 @@ service cloud.firestore {
     function isAdmin() {
       return isSignedIn() && 
              (request.auth.token.email == 'mhossenali740@gmail.com' ||
-              request.auth.token.email == 'hridykhan740@gmail.com' ||
-              (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-               get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'));
+              request.auth.token.email == 'hridykhan740@gmail.com');
     }
 
     function incoming() {
@@ -46,24 +39,36 @@ service cloud.firestore {
              data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
              data.mobile is string && data.mobile.size() <= 20 &&
              data.balance is number && data.balance >= 0 &&
-             data.role is string && data.role.size() <= 50 &&
+             data.role is string && data.role in ['user', 'admin'] &&
              data.createdAt == request.time;
-    }
-
-    function isValidRole(data) {
-      return data.name is string && data.name.size() > 0 && data.name.size() <= 50 &&
-             data.permissions is list && data.permissions.size() <= 100;
     }
 
     function isValidSubmission(data) {
       return data.userId == request.auth.uid &&
+             data.userEmail is string &&
              data.serviceType is string && data.serviceType.size() <= 50 &&
              data.status == 'pending' &&
              data.createdAt == request.time &&
-             data.details is map && data.details.size() <= 50;
+             data.details is map && data.details.size() <= 50 &&
+             (!('paymentScreenshot' in data) || data.paymentScreenshot is string);
+    }
+
+    function isValidNotification(data) {
+      return data.type is string && 
+             data.title is string && data.title.size() <= 200 &&
+             data.message is string && data.message.size() <= 1000 &&
+             data.userId is string &&
+             data.userEmail is string &&
+             data.read is bool &&
+             data.createdAt == request.time;
     }
 
     // --- Match Groups ---
+
+    match /services/{serviceId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
 
     match /users/{userId} {
       allow get: if isOwner(userId) || isAdmin();
@@ -71,33 +76,30 @@ service cloud.firestore {
       
       allow create: if isOwner(userId) && 
                       isValidUser(incoming()) && 
-                      incoming().role == 'user' && 
+                      (isAdmin() ? incoming().role == 'admin' : incoming().role == 'user') && 
                       incoming().balance == 0;
       
-      allow update: if (isAdmin() && isValidUser(incoming())) || 
+      allow update: if (isAdmin() && 
+                        incoming().uid == existing().uid &&
+                        incoming().createdAt == existing().createdAt &&
+                        incoming().diff(existing()).affectedKeys().hasOnly(['role', 'balance', 'name', 'mobile'])) || 
                       (isOwner(userId) && 
                        incoming().diff(existing()).affectedKeys().hasOnly(['name', 'mobile']) &&
                        incoming().name is string && incoming().name.size() > 0 &&
                        incoming().mobile is string && incoming().mobile.size() <= 20);
     }
 
-    match /services/{serviceId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
-    }
-
     match /sim_offers/{offerId} {
-      allow read: if isSignedIn();
+      allow get, list: if isSignedIn();
       allow write: if isAdmin();
     }
 
     match /submissions/{submissionId} {
-      allow get: if isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
+      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       
       allow create: if isSignedIn() && 
-                      isValidSubmission(incoming()) &&
-                      exists(/databases/$(database)/documents/users/$(request.auth.uid));
+                      isValidSubmission(incoming());
       
       allow update: if isAdmin() && 
                       incoming().diff(existing()).affectedKeys().hasOnly(['status']) &&
@@ -124,9 +126,22 @@ service cloud.firestore {
                       incoming().updatedAt == request.time;
     }
 
+    match /notifications/{notificationId} {
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || resource.data.userId == 'SYSTEM' || isAdmin());
+      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || resource.data.userId == 'SYSTEM' || isAdmin());
+      allow create: if isSignedIn() && isValidNotification(incoming());
+      allow update: if isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['read']);
+      allow delete: if isAdmin();
+    }
+
     match /roles/{roleId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }
