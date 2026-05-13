@@ -16,11 +16,13 @@ import {
 import { 
   doc, 
   getDoc, 
+  getDocFromServer,
   setDoc,
   updateDoc, 
   collection,
   onSnapshot,
-  serverTimestamp 
+  serverTimestamp,
+  addDoc
 } from "firebase/firestore";
 import { 
   Facebook, 
@@ -45,7 +47,8 @@ import {
   Send,
   Home,
   Zap,
-  BookOpen
+  BookOpen,
+  ArrowLeft
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { 
@@ -164,6 +167,20 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    // Test connection
+    const testConnection = async () => {
+      console.log("--- Firestore Debug Info ---");
+      console.log("DB ID:", (db as any)._databaseId?.databaseId || "default");
+      console.log("Project ID:", (db as any)._databaseId?.projectId || "unknown");
+      try {
+        await getDocFromServer(doc(db, "services", "connection-test"));
+        console.log("Firestore connection test: SUCCESS");
+      } catch (error: any) {
+        console.log("Firestore connection test: FAILED", error.message);
+      }
+    };
+    testConnection();
+
     // Set global persistence once
     setPersistence(auth, browserLocalPersistence).catch(err => console.error("Persistence error:", err));
 
@@ -174,24 +191,17 @@ export default function App() {
       try {
         setUser(u);
         
-        // Cleanup old listeners
-        if (unsubServices) { unsubServices(); unsubServices = null; }
+        // Cleanup old listener
         if (unsubProfile) { unsubProfile(); unsubProfile = null; }
 
         if (u) {
-          // Listen to services
-          unsubServices = onSnapshot(collection(db, "services"), (snapshot) => {
-            setServices(snapshot.docs.map(doc => doc.data() as PlatformService));
-          }, (err) => {
-            handleFirestoreError(err, OperationType.LIST, "services");
-          });
-
           // Check if profile exists and listen to it
           const profileDoc = await getDoc(doc(db, "users", u.uid));
           if (!profileDoc.exists()) {
             const newProfile: UserProfile = {
               uid: u.uid,
               name: u.displayName || "New User",
+              email: u.email || "",
               mobile: u.phoneNumber || "01XXX-XXXXXX",
               balance: 0,
               role: (u.email && ADMIN_EMAILS.includes(u.email)) ? 'admin' : 'user',
@@ -201,10 +211,17 @@ export default function App() {
             setProfile(newProfile);
           } else {
             const currentProfile = profileDoc.data() as UserProfile;
-            // Sync role if email is in ADMIN_EMAILS but role is not admin
+            // Sync role or email if missing
+            const updates: any = {};
             if (u.email && ADMIN_EMAILS.includes(u.email) && currentProfile.role !== 'admin') {
-              await updateDoc(doc(db, "users", u.uid), { role: 'admin' });
-              currentProfile.role = 'admin';
+              updates.role = 'admin';
+            }
+            if (!currentProfile.email && u.email) {
+              updates.email = u.email;
+            }
+            if (Object.keys(updates).length > 0) {
+              await updateDoc(doc(db, "users", u.uid), updates);
+              Object.assign(currentProfile, updates);
             }
             setProfile(currentProfile);
           }
@@ -219,16 +236,16 @@ export default function App() {
         }
       } catch (err: any) {
         console.error("Auth state change error detail:", err);
-        // If it's a JSON string from handleFirestoreError, it will be easier to read
-        try {
-          const detail = JSON.parse(err.message);
-          console.error("Parsed Auth Error:", detail);
-        } catch {
-          // not a json string
-        }
       } finally {
         setLoading(false);
       }
+    });
+
+    // Load services publicly
+    unsubServices = onSnapshot(collection(db, "services"), (snapshot) => {
+      setServices(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as PlatformService)));
+    }, (err) => {
+      handleFirestoreError(err, OperationType.LIST, "services");
     });
 
     return () => {
@@ -864,6 +881,4 @@ const AgentLinks = ({ onBack }: { onBack: () => void }) => (
   </div>
 );
 
-const ArrowLeft = ({ size }: { size: number }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
-);
+// Removed local ArrowLeft to fix conflict with Lucide icon

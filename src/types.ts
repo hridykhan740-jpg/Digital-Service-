@@ -13,6 +13,7 @@ export interface PlatformService {
 export interface UserProfile {
   uid: string;
   name: string;
+  email: string;
   mobile: string;
   balance: number;
   role: 'user' | 'admin';

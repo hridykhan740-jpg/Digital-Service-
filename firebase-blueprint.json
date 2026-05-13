@@ -1,114 +1,96 @@
 {
   "entities": {
-    "User": {
-      "title": "User Profile",
-      "description": "User profile with balance and role",
-      "type": "object",
-      "properties": {
-        "uid": { "type": "string" },
-        "name": { "type": "string" },
-        "mobile": { "type": "string" },
-        "balance": { "type": "number" },
-        "role": { "$ref": "#/entities/Role" },
-        "createdAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["uid", "name", "balance", "role"]
-    },
-    "Service": {
+    "PlatformService": {
       "title": "Platform Service",
-      "description": "Configuration for available services",
+      "description": "A service offered by the platform (e.g. Facebook Verification)",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
         "title": { "type": "string" },
+        "description": { "type": "string" },
         "active": { "type": "boolean" },
-        "adminOnly": { "type": "boolean" },
         "priceInfo": { "type": "string" },
-        "description": { "type": "string" }
+        "adminOnly": { "type": "boolean" }
       },
       "required": ["id", "title", "active"]
     },
+    "SimOffer": {
+      "title": "SIM Offer",
+      "description": "A mobile package offer",
+      "type": "object",
+      "properties": {
+        "operator": { "type": "string" },
+        "type": { "type": "string" },
+        "title": { "type": "string" },
+        "price": { "type": "string" },
+        "validity": { "type": "string" },
+        "active": { "type": "boolean" }
+      },
+      "required": ["operator", "title", "price", "validity"]
+    },
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "User account information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "mobile": { "type": "string" },
+        "balance": { "type": "number" },
+        "role": { "type": "string", "enum": ["user", "admin"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
     "Submission": {
-      "title": "Submissions/Orders",
-      "description": "Requests from users for various services",
+      "title": "Submission",
+      "description": "A service request or order",
       "type": "object",
       "properties": {
         "userId": { "type": "string" },
         "userEmail": { "type": "string" },
         "serviceType": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "success", "rejected"] },
         "details": { "type": "object" },
         "paymentScreenshot": { "type": "string" },
-        "status": { "type": "string", "enum": ["pending", "completed", "rejected"] },
         "createdAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["userId", "serviceType", "status", "createdAt"]
+      }
     },
-    "SimOffer": {
-      "title": "SIM Offer",
-      "description": "Available mobile offers",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "operator": { "type": "string" },
-        "type": { "type": "string", "enum": ["Bundle", "Minute", "Internet"] },
-        "title": { "type": "string" },
-        "price": { "type": "number" },
-        "validity": { "type": "string" },
-        "active": { "type": "boolean" }
-      },
-      "required": ["id", "operator", "type", "title", "price", "active"]
-    },
-    "Note": {
-      "title": "User Note",
-      "description": "Individual notes for user tally/tracking",
+    "Notification": {
+      "title": "Notification",
+      "description": "System or user notification/log",
       "type": "object",
       "properties": {
         "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "type": { "type": "string" },
         "title": { "type": "string" },
-        "content": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" },
-        "updatedAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["userId", "title", "content", "createdAt"]
-    },
-    "Role": {
-      "title": "User Role",
-      "description": "Role definitions with permissions",
-      "type": "object",
-      "properties": {
-        "name": { "type": "string" },
-        "permissions": {
-          "type": "array",
-          "items": { "type": "string" }
-        }
-      },
-      "required": ["name", "permissions"]
+        "message": { "type": "string" },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
     }
   },
   "firestore": {
-    "users/{userId}": {
-      "schema": "User",
-      "description": "Individual user profiles"
+    "/services": {
+      "schema": "PlatformService",
+      "description": "Available platform services"
     },
-    "services/{serviceId}": {
-      "schema": "Service",
-      "description": "Service definitions"
-    },
-    "submissions/{submissionId}": {
-      "schema": "Submission",
-      "description": "User requests for services"
-    },
-    "sim_offers/{offerId}": {
+    "/sim_offers": {
       "schema": "SimOffer",
-      "description": "Available SIM offers"
+      "description": "Available SIM packages"
     },
-    "notes/{noteId}": {
-      "schema": "Note",
-      "description": "Private user notes"
+    "/users": {
+      "schema": "UserProfile",
+      "description": "User profiles"
     },
-    "roles/{roleId}": {
-      "schema": "Role",
-      "description": "Role definitions"
+    "/submissions": {
+      "schema": "Submission",
+      "description": "Order submissions"
+    },
+    "/notifications": {
+      "schema": "Notification",
+      "description": "Activity logs and notifications"
     }
   }
 }

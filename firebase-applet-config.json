@@ -3,7 +3,7 @@
   "appId": "1:323210892829:web:1625ce52d91a939dbcd8f4",
   "apiKey": "AIzaSyCNc9aLw8-k5sFae8R2948OD04VambcfKQ",
   "authDomain": "digital-service-sig.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-servicepointbd-a8f8d137-14c9-4cbb-a246-465e2765637e",
+  "firestoreDatabaseId": "(default)",
   "storageBucket": "digital-service-sig.firebasestorage.app",
   "messagingSenderId": "323210892829",
   "measurementId": ""

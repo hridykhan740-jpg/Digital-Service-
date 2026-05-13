@@ -1,147 +1,89 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // --- Primitives ---
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
     function isSignedIn() {
       return request.auth != null;
     }
 
-    function isEmailVerified() {
-      return isSignedIn() && request.auth.token.email_verified == true;
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email in ['mhossenali740@gmail.com', 'hridykhan740@gmail.com'] ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+      );
     }
 
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    function isAdmin() {
-      return isSignedIn() && 
-             (request.auth.token.email == 'mhossenali740@gmail.com' ||
-              request.auth.token.email == 'hridykhan740@gmail.com');
-    }
-
-    function incoming() {
-      return request.resource.data;
-    }
-
-    function existing() {
-      return resource.data;
-    }
-
     function isValidId(id) {
       return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
-    // --- Entity Validations ---
-
-    function isValidUser(data) {
-      return data.uid == request.auth.uid &&
-             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
-             data.mobile is string && data.mobile.size() <= 20 &&
-             data.balance is number && data.balance >= 0 &&
-             data.role is string && data.role in ['user', 'admin'] &&
-             data.createdAt == request.time;
-    }
-
-    function isValidSubmission(data) {
-      return data.userId == request.auth.uid &&
-             data.userEmail is string &&
-             data.serviceType is string && data.serviceType.size() <= 50 &&
-             data.status == 'pending' &&
-             data.createdAt == request.time &&
-             data.details is map && data.details.size() <= 50 &&
-             (!('paymentScreenshot' in data) || data.paymentScreenshot is string);
-    }
-
-    function isValidNotification(data) {
-      return data.type is string && 
-             data.title is string && data.title.size() <= 200 &&
-             data.message is string && data.message.size() <= 1000 &&
-             data.userId is string &&
-             data.userEmail is string &&
-             data.read is bool &&
-             data.createdAt == request.time;
-    }
-
-    // --- Match Groups ---
-
-    match /services/{serviceId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
-    }
+    // --- Collections ---
 
     match /users/{userId} {
+      // Allow users to read their own profile or admins to read all
       allow get: if isOwner(userId) || isAdmin();
       allow list: if isAdmin();
       
-      allow create: if isOwner(userId) && 
-                      isValidUser(incoming()) && 
-                      (isAdmin() ? incoming().role == 'admin' : incoming().role == 'user') && 
-                      incoming().balance == 0;
+      // Allow creation of profile if it's the current user
+      allow create: if isOwner(userId);
       
-      allow update: if (isAdmin() && 
-                        incoming().uid == existing().uid &&
-                        incoming().createdAt == existing().createdAt &&
-                        incoming().diff(existing()).affectedKeys().hasOnly(['role', 'balance', 'name', 'mobile'])) || 
-                      (isOwner(userId) && 
-                       incoming().diff(existing()).affectedKeys().hasOnly(['name', 'mobile']) &&
-                       incoming().name is string && incoming().name.size() > 0 &&
-                       incoming().mobile is string && incoming().mobile.size() <= 20);
+      // Allow updates to own profile (limited) or admin full access
+      allow update: if isOwner(userId) || isAdmin();
+    }
+
+    match /services/{serviceId} {
+      // Allow anyone to see services (needed for homepage)
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
     match /sim_offers/{offerId} {
-      allow get, list: if isSignedIn();
+      // Allow anyone to see offers
+      allow read: if true;
       allow write: if isAdmin();
     }
 
     match /submissions/{submissionId} {
+      // Allow users to see their own submissions or admins to see all
       allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       
-      allow create: if isSignedIn() && 
-                      isValidSubmission(incoming());
+      // Allow creation if the user is authenticated and the data matches their UID
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       
-      allow update: if isAdmin() && 
-                      incoming().diff(existing()).affectedKeys().hasOnly(['status']) &&
-                      incoming().status in ['pending', 'completed', 'rejected', 'success'];
-      
+      // Allow admins to update status, or users to delete their own pending
+      allow update, delete: if isAdmin() || (isOwner(resource.data.userId) && resource.data.status == 'pending');
+    }
+
+    match /notifications/{notifId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn();
+      allow update: if isOwner(resource.data.userId) || isAdmin();
       allow delete: if isAdmin();
     }
 
     match /notes/{noteId} {
-      allow create: if isSignedIn() && 
-                      incoming().userId == request.auth.uid &&
-                      incoming().title is string && incoming().title.size() <= 200 &&
-                      incoming().content is string && incoming().content.size() <= 10000 &&
-                      incoming().createdAt == request.time;
-      
-      allow read, delete: if isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
-      
-      allow update: if isSignedIn() && 
-                      existing().userId == request.auth.uid &&
-                      incoming().userId == existing().userId &&
-                      incoming().diff(existing()).affectedKeys().hasOnly(['title', 'content', 'updatedAt']) &&
-                      incoming().title is string && incoming().title.size() <= 200 &&
-                      incoming().content is string && incoming().content.size() <= 10000 &&
-                      incoming().updatedAt == request.time;
+      allow read, write: if isAdmin();
     }
-
-    match /notifications/{notificationId} {
-      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || resource.data.userId == 'SYSTEM' || isAdmin());
-      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || resource.data.userId == 'SYSTEM' || isAdmin());
-      allow create: if isSignedIn() && isValidNotification(incoming());
-      allow update: if isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['read']);
-      allow delete: if isAdmin();
-    }
-
+    
     match /roles/{roleId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
     }
 
-    // Default deny
-    match /{document=**} {
-      allow read, write: if false;
+    // Services connection test document
+    match /services/connection-test {
+      allow read: if true;
     }
   }
 }

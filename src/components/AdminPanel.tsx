@@ -69,7 +69,14 @@ export const AdminPanel: React.FC = () => {
     active: true
   });
 
-  // ... (rest of form state remains)
+  const [newService, setNewService] = useState<Partial<PlatformService>>({
+    id: '',
+    title: '',
+    description: '',
+    active: true,
+    priceInfo: '',
+    adminOnly: false
+  });
 
   useEffect(() => {
     const subQuery = query(collection(db, "submissions"), orderBy("createdAt", "desc"));
@@ -433,7 +440,7 @@ export const AdminPanel: React.FC = () => {
                                 <Edit2 size={16} />
                               </button>
                               <button 
-                                onClick={() => handleResetPasswordAdmin(u.uid)} // We assume uid is email for manual accounts for now, or we'd need email in profile
+                                onClick={() => handleResetPasswordAdmin(u.email)}
                                 className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
                                 title="Reset Password"
                               >
