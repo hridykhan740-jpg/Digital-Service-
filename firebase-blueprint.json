@@ -2,7 +2,7 @@
   "entities": {
     "User": {
       "title": "User Profile",
-      "description": "User profile information including balance and contact details.",
+      "description": "User profile with balance and role",
       "type": "object",
       "properties": {
         "uid": { "type": "string" },
@@ -12,69 +12,69 @@
         "role": { "type": "string", "enum": ["user", "admin"] },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["uid", "name", "mobile", "balance", "role"]
+      "required": ["uid", "name", "balance", "role"]
+    },
+    "Service": {
+      "title": "Platform Service",
+      "description": "Configuration for available services",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "active": { "type": "boolean" },
+        "adminOnly": { "type": "boolean" },
+        "priceInfo": { "type": "string" },
+        "description": { "type": "string" }
+      },
+      "required": ["id", "title", "active"]
     },
     "Submission": {
-      "title": "Service Submission",
-      "description": "User submissions for various services.",
+      "title": "Submissions/Orders",
+      "description": "Requests from users for various services",
       "type": "object",
       "properties": {
         "userId": { "type": "string" },
         "userEmail": { "type": "string" },
-        "serviceType": { "type": "string", "enum": ["facebook_verification", "website_dev", "app_dev", "sim_offer"] },
+        "serviceType": { "type": "string" },
         "details": { "type": "object" },
         "paymentScreenshot": { "type": "string" },
-        "status": { "type": "string", "enum": ["pending", "success", "rejected"] },
+        "status": { "type": "string", "enum": ["pending", "completed", "rejected"] },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["userId", "serviceType", "status", "createdAt"]
     },
     "SimOffer": {
       "title": "SIM Offer",
-      "description": "Mobile operator offers.",
-      "type": "object",
-      "properties": {
-        "operator": { "type": "string", "enum": ["GP", "Robi", "Banglalink", "Airtel", "Robi/Airtel Family"] },
-        "type": { "type": "string", "enum": ["Bundle", "Minute", "Internet"] },
-        "title": { "type": "string" },
-        "price": { "type": "string" },
-        "validity": { "type": "string" },
-        "description": { "type": "string" },
-        "active": { "type": "boolean" }
-      },
-      "required": ["operator", "type", "title", "price", "validity", "active"]
-    },
-    "Service": {
-      "title": "Platform Service",
-      "description": "Configuration for core platform services.",
+      "description": "Available mobile offers",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
+        "operator": { "type": "string" },
+        "type": { "type": "string", "enum": ["Bundle", "Minute", "Internet"] },
         "title": { "type": "string" },
-        "description": { "type": "string" },
-        "icon": { "type": "string" },
-        "active": { "type": "boolean" },
-        "priceInfo": { "type": "string" }
+        "price": { "type": "number" },
+        "validity": { "type": "string" },
+        "active": { "type": "boolean" }
       },
-      "required": ["id", "title", "active"]
+      "required": ["id", "operator", "type", "title", "price", "active"]
     }
   },
   "firestore": {
-    "users/{uid}": {
+    "users/{userId}": {
       "schema": "User",
-      "description": "User accounts"
-    },
-    "submissions/{submissionId}": {
-      "schema": "Submission",
-      "description": "Collection of user service requests"
-    },
-    "sim_offers/{offerId}": {
-      "schema": "SimOffer",
-      "description": "Collection of available SIM offers"
+      "description": "Individual user profiles"
     },
     "services/{serviceId}": {
       "schema": "Service",
-      "description": "Core platform services configuration"
+      "description": "Service definitions"
+    },
+    "submissions/{submissionId}": {
+      "schema": "Submission",
+      "description": "User requests for services"
+    },
+    "sim_offers/{offerId}": {
+      "schema": "SimOffer",
+      "description": "Available SIM offers"
     }
   }
 }

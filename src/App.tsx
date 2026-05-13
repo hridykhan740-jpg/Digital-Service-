@@ -69,19 +69,28 @@ export default function App() {
   const [showPaymentInfo, setShowPaymentInfo] = useState(false);
 
   useEffect(() => {
-    // Listen to services
-    const unsubServices = onSnapshot(collection(db, "services"), (snapshot) => {
-      setServices(snapshot.docs.map(doc => doc.data() as PlatformService));
-    });
+    let unsubServices: (() => void) | null = null;
+    let unsubProfile: (() => void) | null = null;
 
     const unsubAuth = onAuthStateChanged(auth, async (u) => {
       try {
         setUser(u);
+        
+        // Cleanup old listeners
+        if (unsubServices) { unsubServices(); unsubServices = null; }
+        if (unsubProfile) { unsubProfile(); unsubProfile = null; }
+
         if (u) {
-          // Check if profile exists
+          // Listen to services
+          unsubServices = onSnapshot(collection(db, "services"), (snapshot) => {
+            setServices(snapshot.docs.map(doc => doc.data() as PlatformService));
+          }, (err) => {
+            handleFirestoreError(err, OperationType.LIST, "services");
+          });
+
+          // Check if profile exists and listen to it
           const profileDoc = await getDoc(doc(db, "users", u.uid));
           if (!profileDoc.exists()) {
-            // If using google auth, auto-create a basic profile if missing
             const newProfile: UserProfile = {
               uid: u.uid,
               name: u.displayName || "New User",
@@ -96,8 +105,7 @@ export default function App() {
             setProfile(profileDoc.data() as UserProfile);
           }
           
-          // Listen to profile updates (for balance/role changes)
-          onSnapshot(doc(db, "users", u.uid), (doc) => {
+          unsubProfile = onSnapshot(doc(db, "users", u.uid), (doc) => {
             if (doc.exists()) setProfile(doc.data() as UserProfile);
           }, (err) => {
             handleFirestoreError(err, OperationType.GET, `users/${u.uid}`);
@@ -114,11 +122,13 @@ export default function App() {
 
     return () => {
       unsubAuth();
-      unsubServices();
+      if (unsubServices) unsubServices();
+      if (unsubProfile) unsubProfile();
     };
   }, []);
 
   const login = async () => {
+    if (authLoading) return;
     setAuthLoading(true);
     try {
       await setPersistence(auth, browserLocalPersistence);
@@ -128,7 +138,11 @@ export default function App() {
     } catch (err: any) {
       console.error("Login Error:", err);
       if (err.code === 'auth/popup-blocked') {
-        alert("আপনার ব্রাউজার পপ-আপ ব্লক করেছে। অনুগ্রহ করে পপ-আপ এলাউ করুন।");
+        alert("আপনার ব্রাউজার পপ-আপ ব্লক করেছে। অনুগ্রহ করে ব্রাউজার সেটিং থেকে পপ-আপ এলাউ করুন এবং আবার চেষ্টা করুন। টিপস: আপনি যদি মেসেঞ্জার বা ফেসবুকের ভেতর থেকে অ্যাপটি চালান, তবে এটি কাজ করবে না। দয়া করে Chrome ব্রাউজার ব্যবহার করুন।");
+      } else if (err.code === 'auth/unauthorized-domain') {
+        alert("এই ডোমেইনটি আপনার ফায়ারবেস কনসোলে অনুমোদিত নয়।\n\nদয়া করে Firebase Console > Authentication > Settings > Authorized Domains-এ আপনার বর্তমান ডোমেইনটি যোগ করুন।");
+      } else if (err.code === 'auth/cancelled-popup-request') {
+        // Just ignore if user closed it manually or a previous one was pending
       } else {
         alert("লগইন করতে সমস্যা হচ্ছে: " + (err.code || err.message));
       }
@@ -138,6 +152,7 @@ export default function App() {
   };
 
   const loginWithFacebook = async () => {
+    if (authLoading) return;
     setAuthLoading(true);
     try {
       await setPersistence(auth, browserLocalPersistence);
@@ -147,7 +162,9 @@ export default function App() {
     } catch (err: any) {
       console.error("Facebook Login Error:", err);
       if (err.code === 'auth/popup-blocked') {
-        alert("আপনার ব্রাউজার পপ-আপ ব্লক করেছে। অনুগ্রহ করে পপ-আপ এলাউ করুন।");
+        alert("আপনার ব্রাউজার পপ-আপ ব্লক করেছে। অনুগ্রহ করে ব্রাউজার সেটিং থেকে পপ-আপ এলাউ করুন এবং আবার চেষ্টা করুন। টিপস: আপনি যদি মেসেঞ্জার বা ফেসবুকের ভেতর থেকে অ্যাপটি চালান, তবে এটি কাজ করবে না। দয়া করে Chrome ব্রাউজার ব্যবহার করুন।");
+      } else if (err.code === 'auth/unauthorized-domain') {
+        alert("এই ডোমেইনটি আপনার ফায়ারবেস কনসোলে অনুমোদিত নয়।\n\nদয়া করে Firebase Console > Authentication > Settings > Authorized Domains-এ আপনার বর্তমান ডোমেইনটি যোগ করুন।");
       } else if (err.code === 'auth/account-exists-with-different-credential') {
         alert("এই ইমেইল দিয়ে ইতমধ্যেই একটি অ্যাকাউন্ট আছে। অনুগ্রহ করে গুগল দিয়ে লগইন করুন।");
       } else {

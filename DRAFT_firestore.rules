@@ -20,11 +20,9 @@ service cloud.firestore {
     }
 
     function isAdmin() {
+      // We check the 'role' field in the users collection
       return isSignedIn() && 
-             (request.auth.token.email == 'mhossenali740@gmail.com' ||
-              request.auth.token.email == 'hridykhan740@gmail.com' ||
-              (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-               get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'));
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
     function incoming() {
@@ -52,10 +50,9 @@ service cloud.firestore {
 
     function isValidSubmission(data) {
       return data.userId == request.auth.uid &&
-             data.serviceType is string && data.serviceType.size() <= 50 &&
+             data.serviceType is string &&
              data.status == 'pending' &&
-             data.createdAt == request.time &&
-             data.details is map && data.details.size() <= 50;
+             data.createdAt == request.time;
     }
 
     // --- Match Groups ---
@@ -66,6 +63,7 @@ service cloud.firestore {
       
       allow create: if isOwner(userId) && 
                       isValidUser(incoming()) && 
+                      // Prevent self-elevation on create:
                       incoming().role == 'user' && 
                       incoming().balance == 0;
       
@@ -92,13 +90,20 @@ service cloud.firestore {
       
       allow create: if isSignedIn() && 
                       isValidSubmission(incoming()) &&
+                      // Ensure the user document exists before submitting
                       exists(/databases/$(database)/documents/users/$(request.auth.uid));
       
       allow update: if isAdmin() && 
-                      incoming().diff(existing()).affectedKeys().hasOnly(['status']) &&
-                      incoming().status in ['pending', 'completed', 'rejected', 'success'];
+                      incoming().diff(existing()).affectedKeys().hasAny(['status']) &&
+                      incoming().status in ['pending', 'completed', 'rejected'];
       
       allow delete: if isAdmin();
+    }
+    
+    // Explicitly allow admins based on hardcoded emails to bootstrap
+    // This part is risky but often necessary for initial setup
+    match /users/{userId} {
+      allow write: if isSignedIn() && (request.auth.token.email == 'mhossenali740@gmail.com' || request.auth.token.email == 'hridykhan740@gmail.com') && request.auth.token.email_verified == true;
     }
   }
 }
